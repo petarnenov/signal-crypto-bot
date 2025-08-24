@@ -1,0 +1,43 @@
+# Cursor Rules for Signal Crypto Bot
+
+## Markdown Files
+- Always run markdownlint on .md files before committing
+- Auto-fix markdown issues when possible
+- Ensure proper spacing around headings, lists, and code blocks
+- Keep line length under 80 characters
+- Use proper language specifiers for code blocks
+
+## Code Quality
+- Use ESLint for JavaScript/TypeScript files
+- Use Prettier for code formatting
+- Run tests before committing
+- Follow consistent naming conventions
+
+## File Structure
+- Keep project structure organized as defined in ROADMAP.md
+- Use descriptive file and folder names
+- Maintain clear separation between backend and frontend
+
+## Documentation
+- Update README.md when adding new features
+- Document API endpoints
+- Keep ROADMAP.md updated with progress
+- Add inline comments for complex logic
+
+## Security
+- Never commit API keys or sensitive data
+- Use environment variables for configuration
+- Validate all user inputs
+- Implement proper error handling
+
+## Performance
+- Optimize API calls with caching
+- Use efficient database queries
+- Monitor resource usage in Docker containers
+- Implement rate limiting where appropriate
+
+## Spell Checking
+- Always add unknown words to user's spell checker settings
+- Add technical terms, cryptocurrency names, and project-specific terminology
+- Include API names, framework names, and technical abbreviations
+- Add Bulgarian words when working with Bulgarian content
