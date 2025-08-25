@@ -64,7 +64,8 @@ describe('useWebSocket', () => {
 	it('should connect to WebSocket on mount', () => {
 		renderHook(() => useWebSocket(), { wrapper });
 
-		expect(global.WebSocket).toHaveBeenCalledWith('ws://localhost:3001');
+		const expectedPort = process.env.NODE_ENV === 'test' && global.testPort ? global.testPort : 3001;
+		expect(global.WebSocket).toHaveBeenCalledWith(`ws://localhost:${expectedPort}`);
 	});
 
 	it('should return connection status', () => {
@@ -273,7 +274,8 @@ describe('useWebSocket', () => {
 	it('should handle WebSocket URL construction', () => {
 		renderHook(() => useWebSocket(), { wrapper });
 
-		expect(global.WebSocket).toHaveBeenCalledWith('ws://localhost:3001');
+		const expectedPort = process.env.NODE_ENV === 'test' && global.testPort ? global.testPort : 3001;
+		expect(global.WebSocket).toHaveBeenCalledWith(`ws://localhost:${expectedPort}`);
 	});
 
 	it('should handle WebSocket URL with HTTPS protocol', () => {
@@ -288,7 +290,8 @@ describe('useWebSocket', () => {
 
 		renderHook(() => useWebSocket(), { wrapper });
 
-		expect(global.WebSocket).toHaveBeenCalledWith('wss://localhost:3001');
+		const expectedPort = process.env.NODE_ENV === 'test' && global.testPort ? global.testPort : 3001;
+		expect(global.WebSocket).toHaveBeenCalledWith(`wss://localhost:${expectedPort}`);
 	});
 
 	it('should handle WebSocket connection with different hostname', () => {
@@ -303,7 +306,8 @@ describe('useWebSocket', () => {
 
 		renderHook(() => useWebSocket(), { wrapper });
 
-		expect(global.WebSocket).toHaveBeenCalledWith('ws://example.com:3001');
+		const expectedPort = process.env.NODE_ENV === 'test' && global.testPort ? global.testPort : 3001;
+		expect(global.WebSocket).toHaveBeenCalledWith(`ws://example.com:${expectedPort}`);
 	});
 
 	it('should handle WebSocket error during connection', async () => {

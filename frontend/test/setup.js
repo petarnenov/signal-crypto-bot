@@ -1,9 +1,23 @@
 import React from 'react';
-import { afterEach, vi } from 'vitest';
+import { afterEach, vi, beforeAll } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import fs from 'fs';
 import path from 'path';
+
+// Generate unique port for each test run
+const getTestPort = () => {
+	const basePort = 3301;
+	const randomOffset = Math.floor(Math.random() * 100);
+	return basePort + randomOffset;
+};
+
+// Global test setup
+beforeAll(() => {
+	// Set unique port for this test run
+	global.testPort = getTestPort();
+	process.env.PORT = global.testPort.toString();
+});
 
 // Make React globally available
 global.React = React;

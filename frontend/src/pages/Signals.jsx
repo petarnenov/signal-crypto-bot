@@ -76,11 +76,25 @@ function Signals() {
 				};
 			}).filter(Boolean);
 
-			setExpectedSignals(expected);
+			console.log('🔄 Signals page: expectedSignals updated:', expected);
+			// Add timestamp to each signal object to force React re-render
+			const signalsWithTimestamp = expected.map(signal => ({
+				...signal,
+				_timestamp: Date.now()
+			}));
+			setExpectedSignals(signalsWithTimestamp);
 		} catch (error) {
 			console.error('Error loading market data:', error);
 		}
 	}, [sendMessage, signals]);
+
+	// Update expected signals when signals change
+	useEffect(() => {
+		console.log('🔄 Signals page: signals changed, count:', signals.length);
+		if (sendMessage && signals.length > 0) {
+			loadMarketData();
+		}
+	}, [signals, sendMessage, loadMarketData]);
 
 	useEffect(() => {
 		// Listen for data updates and signal generation from WebSocket
@@ -91,7 +105,7 @@ function Signals() {
 		const handleSignalGenerated = () => {
 			console.log('🔄 Signals page: signalGenerated event received, refreshing data...');
 			refreshSignals();
-			loadMarketData(); // Also refresh market data when new signal is generated
+			// loadMarketData will be called automatically when signals update
 		};
 
 		window.addEventListener('dataUpdated', handleDataUpdate);
@@ -207,7 +221,7 @@ function Signals() {
 							) : (
 								<div data-testid="recent-signals-list" className="space-y-3">
 									{expectedSignals.map((signal) => (
-										<div key={signal.symbol} data-testid={`recent-signal-${signal.symbol}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+										<div key={`${signal.symbol}-${signal._timestamp || Date.now()}`} data-testid={`recent-signal-${signal.symbol}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
 											<div className="flex items-center space-x-3">
 												<div data-testid={`recent-signal-symbol-${signal.symbol}`} className="text-sm font-medium text-gray-900">
 													{signal.symbol}

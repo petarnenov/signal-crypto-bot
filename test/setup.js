@@ -1,11 +1,22 @@
 import { beforeAll, afterAll } from 'vitest';
 const CryptoBotDatabase = require('../database/db.js');
 
+// Generate unique port for each test run
+const getTestPort = () => {
+	const basePort = 3301;
+	const randomOffset = Math.floor(Math.random() * 100);
+	return basePort + randomOffset;
+};
+
 // Global test setup
 beforeAll(async () => {
 	// Create test database
 	global.testDb = new CryptoBotDatabase(':memory:');
 	// Database is automatically initialized in constructor
+
+	// Set unique port for this test run
+	global.testPort = getTestPort();
+	process.env.PORT = global.testPort.toString();
 });
 
 afterAll(async () => {
@@ -39,4 +50,3 @@ process.env.BINANCE_API_KEY = 'test-api-key';
 process.env.BINANCE_SECRET_KEY = 'test-secret-key';
 process.env.OPENAI_API_KEY = 'test-openai-key';
 process.env.TELEGRAM_BOT_TOKEN = 'test-telegram-token';
-process.env.PORT = '3001';
