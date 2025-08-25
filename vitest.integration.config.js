@@ -6,8 +6,8 @@ export default defineConfig({
 		globals: true,
 		environment: 'node',
 		setupFiles: ['./test/setup.js'],
-		include: ['test/backend/**/*.test.js'],
-		exclude: ['test/integration/**/*.test.js', 'test/integration/**/*.test.jsx'],
+		include: ['test/integration/**/*.test.js'],
+		exclude: ['test/backend/**/*.test.js'],
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json', 'html'],
@@ -25,8 +25,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			'@': resolve(__dirname, './src'),
-			'@test': resolve(__dirname, './test'),
-			'@frontend': resolve(__dirname, './frontend/src')
+			'@test': resolve(__dirname, './test')
 		}
 	}
 });

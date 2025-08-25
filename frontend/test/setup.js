@@ -1,6 +1,12 @@
-import { afterEach } from 'vitest';
+import React from 'react';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import fs from 'fs';
+import path from 'path';
+
+// Make React globally available
+global.React = React;
 
 // Mock WebSocket for frontend tests
 global.WebSocket = class MockWebSocket {
@@ -37,40 +43,38 @@ global.sessionStorage = {
 	clear: vi.fn()
 };
 
-// Cleanup after each test
+// Mock window.matchMedia
+Object.defineProperty(window, 'matchMedia', {
+	writable: true,
+	value: vi.fn().mockImplementation(query => ({
+		matches: false,
+		media: query,
+		onchange: null,
+		addListener: vi.fn(), // deprecated
+		removeListener: vi.fn(), // deprecated
+		addEventListener: vi.fn(),
+		removeEventListener: vi.fn(),
+		dispatchEvent: vi.fn(),
+	})),
+});
+
+// Clean up after each test
 afterEach(() => {
 	cleanup();
-	vi.clearAllMocks();
 
-	// Clean up any :memory: files that might have been created
-	const fs = require('fs');
-	const path = require('path');
-	const projectDir = path.resolve(__dirname, '../..');
-
+	// Clean up memory files
 	try {
-		const files = fs.readdirSync(projectDir);
+		const projectRoot = path.resolve(__dirname, '../..');
+		const files = fs.readdirSync(projectRoot);
+
 		files.forEach(file => {
 			if (file.startsWith(':memory:')) {
-				const filePath = path.join(projectDir, file);
+				const filePath = path.join(projectRoot, file);
 				fs.unlinkSync(filePath);
-				console.log(`🧹 Cleaned up :memory: file: ${file}`);
+				console.log(`Cleaned up memory file: ${file}`);
 			}
 		});
 	} catch (error) {
-		console.warn('⚠️ Could not clean up :memory: files:', error.message);
+		// Ignore errors during cleanup
 	}
 });
-
-// Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-	observe: vi.fn(),
-	unobserve: vi.fn(),
-	disconnect: vi.fn()
-}));
-
-// Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-	observe: vi.fn(),
-	unobserve: vi.fn(),
-	disconnect: vi.fn()
-}));

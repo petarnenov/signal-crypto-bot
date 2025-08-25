@@ -151,6 +151,13 @@ Remember: ONLY JSON, nothing else.`;
 				technicalIndicators: technicalIndicators
 			};
 
+			// Validate signal type
+			const validSignalTypes = ['buy', 'sell', 'hold'];
+			if (!validSignalTypes.includes(signalData.signalType)) {
+				console.error(`Invalid signal type: ${signalData.signalType}. Converting to 'hold'`);
+				signalData.signalType = 'hold';
+			}
+
 			// Save signal to database
 			const signalId = this.db.createSignal(signalData);
 

@@ -125,6 +125,31 @@ export function SignalProvider({ children, modalFunctions }) {
 		}
 	}, [sendMessage, fetchSignals, fetchStats]);
 
+	// Listen for new signals from WebSocket
+	useEffect(() => {
+		const handleSignalGenerated = (event) => {
+			console.log('New signal received via WebSocket:', event.detail);
+			// Refresh signals to get the latest data
+			refreshSignals();
+		};
+
+		const handleDataUpdated = (event) => {
+			console.log('Data updated via WebSocket:', event.detail);
+			// Refresh signals when data is updated
+			refreshSignals();
+		};
+
+		// Add event listeners for real-time updates
+		window.addEventListener('signalGenerated', handleSignalGenerated);
+		window.addEventListener('dataUpdated', handleDataUpdated);
+
+		// Cleanup event listeners
+		return () => {
+			window.removeEventListener('signalGenerated', handleSignalGenerated);
+			window.removeEventListener('dataUpdated', handleDataUpdated);
+		};
+	}, [refreshSignals]);
+
 	const value = {
 		signals,
 		stats,

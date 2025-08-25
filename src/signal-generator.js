@@ -272,7 +272,7 @@ class SignalGenerator {
 						type: 'signal_generated',
 						data: {
 							cryptocurrency: signal.cryptocurrency,
-							signal_type: signal.signal_type,
+							signalType: signal.signalType,
 							timeframe: signal.timeframe,
 							price: signal.price,
 							confidence: signal.confidence,
@@ -393,7 +393,7 @@ class SignalGenerator {
 			);
 
 			if (signal) {
-				console.log(`Signal generated: ${cryptocurrency} ${signal.signal_type.toUpperCase()} (${timeframe})`);
+				console.log(`Signal generated: ${cryptocurrency} ${signal.signalType.toUpperCase()} (${timeframe})`);
 
 				// Execute signal in Paper Trading
 				try {
@@ -409,10 +409,10 @@ class SignalGenerator {
 						data: {
 							cryptocurrency,
 							timeframe,
-							signal_type: signal.signal_type,
+							signalType: signal.signalType,
 							confidence: signal.confidence,
 							timestamp: new Date().toISOString(),
-							message: `✅ AI decision: ${cryptocurrency} ${cryptocurrency} ${signal.signal_type.toUpperCase()} (${timeframe}) - ${(signal.confidence * 100).toFixed(1)}% confidence`
+							message: `✅ AI decision: ${cryptocurrency} ${cryptocurrency} ${signal.signalType.toUpperCase()} (${timeframe}) - ${(signal.confidence * 100).toFixed(1)}% confidence`
 						}
 					});
 				}
@@ -423,12 +423,12 @@ class SignalGenerator {
 						type: 'signal_generated',
 						data: {
 							cryptocurrency: signal.cryptocurrency,
-							signal_type: signal.signal_type,
+							signalType: signal.signalType,
 							timeframe: signal.timeframe,
 							price: signal.price,
 							confidence: signal.confidence,
 							timestamp: new Date().toISOString(),
-							message: `🚨 MANUAL ${signal.signal_type.toUpperCase()} ${signal.cryptocurrency} (${signal.timeframe}) - $${signal.price.toFixed(2)} - ${(signal.confidence * 100).toFixed(1)}% confidence`
+							message: `🚨 MANUAL ${signal.signalType.toUpperCase()} ${signal.cryptocurrency} (${signal.timeframe}) - $${signal.price?.toFixed(2) || 'N/A'} - ${(signal.confidence * 100).toFixed(1)}% confidence`
 						}
 					});
 				}
@@ -481,9 +481,9 @@ class SignalGenerator {
 
 			// Calculate stats from signals table
 			const totalSignals = allSignals.length;
-			const buySignals = allSignals.filter(s => s.signal_type === 'buy').length;
-			const sellSignals = allSignals.filter(s => s.signal_type === 'sell').length;
-			const holdSignals = allSignals.filter(s => s.signal_type === 'hold').length;
+			const buySignals = allSignals.filter(s => s.signalType === 'buy').length;
+			const sellSignals = allSignals.filter(s => s.signalType === 'sell').length;
+			const holdSignals = allSignals.filter(s => s.signalType === 'hold').length;
 
 			return {
 				total_signals: totalSignals,

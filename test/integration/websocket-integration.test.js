@@ -215,8 +215,8 @@ describe('WebSocket Integration Tests', () => {
 			const response = await new Promise((resolve) => {
 				ws.on('message', (data) => {
 					const parsed = JSON.parse(data);
-					// Skip connection_status messages
-					if (parsed.type !== 'connection_status') {
+					// Skip connection_status and broadcast messages
+					if (parsed.type !== 'connection_status' && parsed.type !== 'config_updated') {
 						resolve(parsed);
 					}
 				});

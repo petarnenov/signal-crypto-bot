@@ -67,7 +67,7 @@ const useWebSocket = () => {
 						debouncedToast(data.data.message, 'warning', 5000);
 					} else if (data.type === 'ai_error') {
 						debouncedToast(data.data.message, 'error', 5000);
-					} else if (data.type === 'signal_generated') {
+					} else if (data.type === 'signal_generated' || data.type === 'signal_generated_response') {
 						debouncedToast(data.data.message, 'success', 5000);
 						window.dispatchEvent(new CustomEvent('signalGenerated', { detail: data.data }));
 					} else if (data.type === 'validation_warning') {

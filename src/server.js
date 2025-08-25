@@ -285,11 +285,22 @@ class CryptoBotServer {
 				case 'generate_signal':
 					const { cryptocurrency, timeframe } = payload;
 					const signal = await this.signalGenerator.generateManualSignal(cryptocurrency, timeframe);
+
+					// Send response to the requesting client
 					ws.send(JSON.stringify({
 						type: 'signal_generated_response',
 						data: signal,
 						requestId
 					}));
+
+					// Broadcast to all connected clients
+					this.broadcast({
+						type: 'signal_generated',
+						data: {
+							message: `New signal generated for ${cryptocurrency} (${timeframe})`,
+							signal: signal
+						}
+					});
 					break;
 
 				case 'get_stats':
@@ -552,7 +563,7 @@ class CryptoBotServer {
 			}
 
 			// Count signal types
-			signalTypes[signal.signal_type] = (signalTypes[signal.signal_type] || 0) + 1;
+			signalTypes[signal.signalType] = (signalTypes[signal.signalType] || 0) + 1;
 
 			// Monthly performance
 			const month = new Date(signal.created_at).toLocaleString('en-US', { month: 'short' }); // Use created_at instead of createdAt
@@ -665,6 +676,9 @@ class CryptoBotServer {
 	// Start server
 	async start() {
 		try {
+			// Set global server instance early so services can access it
+			global.serverInstance = this;
+
 			this.initMiddleware();
 			await this.initServices();
 			this.setupRoutes();
@@ -716,7 +730,6 @@ process.on('SIGINT', () => {
 // Start server only if not in test environment
 if (process.env.NODE_ENV !== 'test') {
 	const server = new CryptoBotServer();
-	global.serverInstance = server;
 	server.start();
 }
 

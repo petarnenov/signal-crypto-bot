@@ -87,7 +87,7 @@ If you need help, check the documentation or contact the developer.
 
 *Recent Signals:*
 ${recentSignals.map(signal =>
-					`• ${signal.cryptocurrency} ${signal.signal_type.toUpperCase()} (${signal.timeframe})`
+					`• ${signal.cryptocurrency} ${signal.signalType.toUpperCase()} (${signal.timeframe})`
 				).join('\n') || 'No recent signals'}
 
 *Bot Status:* ✅ Online
@@ -115,11 +115,11 @@ ${recentSignals.map(signal =>
 				const signalsMessage = `
 📈 *Recent Signals*
 
-${signals.map(signal => {
-					const emoji = signal.signal_type === 'buy' ? '🟢' :
-						signal.signal_type === 'sell' ? '🔴' : '🟡';
+				${signals.map(signal => {
+					const emoji = signal.signalType === 'buy' ? '🟢' :
+						signal.signalType === 'sell' ? '🔴' : '🟡';
 					const confidence = (signal.confidence * 100).toFixed(1);
-					return `${emoji} *${signal.cryptocurrency}* ${signal.signal_type.toUpperCase()}
+					return `${emoji} *${signal.cryptocurrency}* ${signal.signalType.toUpperCase()}
    Timeframe: ${signal.timeframe}
    Confidence: ${confidence}%
    Price: $${signal.price || 'N/A'}
@@ -197,13 +197,13 @@ ${timeframes?.join(', ') || 'None configured'}
 				return;
 			}
 
-			const emoji = signalData.signal_type === 'buy' ? '🟢' :
-				signalData.signal_type === 'sell' ? '🔴' : '🟡';
+			const emoji = signalData.signalType === 'buy' ? '🟢' :
+				signalData.signalType === 'sell' ? '🔴' : '🟡';
 
 			const confidence = (signalData.confidence * 100).toFixed(1);
 
 			const message = `
-${emoji} *${signalData.signal_type.toUpperCase()} SIGNAL*
+${emoji} *${signalData.signalType.toUpperCase()} SIGNAL*
 
 *Cryptocurrency:* ${signalData.cryptocurrency}
 *Timeframe:* ${signalData.timeframe}

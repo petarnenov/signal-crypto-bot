@@ -4,10 +4,10 @@ import { resolve } from 'path';
 export default defineConfig({
 	test: {
 		globals: true,
-		environment: 'node',
-		setupFiles: ['./test/setup.js'],
-		include: ['test/backend/**/*.test.js'],
-		exclude: ['test/integration/**/*.test.js', 'test/integration/**/*.test.jsx'],
+		environment: 'jsdom',
+		setupFiles: ['test/setup.js'],
+		include: ['test/integration/**/*.test.jsx'],
+		exclude: ['test/!(integration)/**/*.test.jsx', 'test/!(integration)/**/*.test.js'],
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json', 'html'],
@@ -25,8 +25,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			'@': resolve(__dirname, './src'),
-			'@test': resolve(__dirname, './test'),
-			'@frontend': resolve(__dirname, './frontend/src')
+			'@test': resolve(__dirname, './test')
 		}
 	}
 });
