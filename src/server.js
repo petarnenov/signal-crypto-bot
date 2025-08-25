@@ -76,9 +76,7 @@ class CryptoBotServer {
 	// Initialize services
 	async initServices() {
 		try {
-			// Initialize database
-			await this.db.init();
-			console.log('Database initialized successfully');
+			// Database is auto-initialized on creation
 
 			// Initialize signal generator
 			this.signalGenerator = new SignalGenerator({
@@ -195,29 +193,47 @@ class CryptoBotServer {
 					break;
 
 				case 'update_config':
-					const { key, value } = payload;
-					if (key === 'cryptocurrencies' && this.signalGenerator) {
-						// For cryptocurrencies, save directly to database without validation
-						this.db.setConfig(key, value);
-
-						// Emit config_updated with the saved data for frontend refresh
-						if (global.serverInstance && global.serverInstance.broadcast) {
-							global.serverInstance.broadcast({
-								type: 'config_updated',
-								data: {
-									key: key,
-									value: value,
-									timestamp: new Date().toISOString(),
-									message: `⚙️ Configuration updated: ${key}`
-								}
-							});
+					try {
+						// Validate payload
+						if (!payload) {
+							throw new Error('Invalid payload');
 						}
-					} else {
+
+						const { key, value } = payload;
+
+						// Validate required fields
+						if (!key) {
+							throw new Error('Missing key');
+						}
+						if (value === undefined) {
+							throw new Error('Missing value');
+						}
+
+						console.log('🔧 [DEBUG] update_config received:', { key, value, type: typeof value, isArray: Array.isArray(value) });
+
+						// Convert value to proper format if needed
+						let processedValue = value;
+						if ((key === 'cryptocurrencies' || key === 'timeframes') && Array.isArray(value)) {
+							processedValue = JSON.stringify(value);
+						} else if (typeof value === 'object' && value !== null) {
+							// Convert all objects (including arrays, nested objects, etc.) to JSON string
+							processedValue = JSON.stringify(value);
+						} else if (typeof value === 'boolean') {
+							// Convert boolean to string for SQLite compatibility
+							processedValue = value.toString();
+						} else if (typeof value === 'number') {
+							// Convert number to string for SQLite compatibility
+							processedValue = value.toString();
+						} else if (value === null) {
+							// Convert null to empty string for SQLite compatibility
+							processedValue = '';
+						}
+
 						// Save to database first
-						this.db.setConfig(key, value);
+						this.db.setConfig(key, processedValue);
 
 						// Get the saved value from database to ensure consistency
-						const savedValue = this.db.getConfig(key);
+						const savedValue = this.db.getConfigRaw(key);
 
 						// Emit WebSocket notification for config change
 						if (global.serverInstance && global.serverInstance.broadcast) {
@@ -231,12 +247,29 @@ class CryptoBotServer {
 								}
 							});
 						}
+						ws.send(JSON.stringify({
+							type: 'config_updated_response',
+							data: { success: true, message: 'Configuration updated' },
+							requestId
+						}));
+					} catch (error) {
+						console.error('Error handling update_config:', error);
+						console.error('Error stack:', error.stack);
+						console.error('Error details:', {
+							key: payload?.key,
+							value: payload?.value,
+							valueType: typeof payload?.value,
+							isArray: Array.isArray(payload?.value)
+						});
+						ws.send(JSON.stringify({
+							type: 'error',
+							data: {
+								message: `Failed to update configuration: ${error.message}`,
+								timestamp: new Date().toISOString()
+							},
+							requestId
+						}));
 					}
-					ws.send(JSON.stringify({
-						type: 'config_updated_response',
-						data: { success: true, message: 'Configuration updated' },
-						requestId
-					}));
 					break;
 
 				case 'get_signals':
@@ -325,35 +358,89 @@ class CryptoBotServer {
 					break;
 
 				case 'get_paper_trading_accounts':
+					console.log('🔍 [SERVER] Handling get_paper_trading_accounts request');
 					// Get all accounts for all users
 					const allAccounts = [];
 					try {
 						const user1Accounts = await this.paperTradingService.getUserAccounts('user1');
 						const user2Accounts = await this.paperTradingService.getUserAccounts('user2');
 						allAccounts.push(...user1Accounts, ...user2Accounts);
+						console.log('✅ [SERVER] Found', allAccounts.length, 'accounts');
 					} catch (error) {
-						console.error('Error fetching paper trading accounts:', error);
+						console.error('❌ [SERVER] Error fetching paper trading accounts:', error);
 					}
-					ws.send(JSON.stringify({
+					const response = {
 						type: 'paper_trading_accounts_response',
 						data: allAccounts,
 						requestId
-					}));
+					};
+					console.log('📤 [SERVER] Sending response:', response.type);
+					ws.send(JSON.stringify(response));
 					break;
 
 				case 'get_paper_trading_positions':
+					console.log('🔍 [SERVER] Handling get_paper_trading_positions request');
 					const { accountId } = payload;
-					const positions = this.paperTradingService.getPositions(accountId || 'default');
-					ws.send(JSON.stringify({
+					let positions = [];
+					try {
+						if (accountId) {
+							const accountPositions = await this.paperTradingService.getPositions(accountId);
+							positions = accountPositions || [];
+						} else {
+							// Get positions for all accounts
+							const allAccounts = [];
+							const user1Accounts = await this.paperTradingService.getUserAccounts('user1');
+							const user2Accounts = await this.paperTradingService.getUserAccounts('user2');
+							allAccounts.push(...user1Accounts, ...user2Accounts);
+
+							for (const account of allAccounts) {
+								const accountPositions = await this.paperTradingService.getPositions(account.id);
+								if (accountPositions && Array.isArray(accountPositions)) {
+									positions.push(...accountPositions);
+								}
+							}
+						}
+						console.log('✅ [SERVER] Found', positions.length, 'positions');
+					} catch (error) {
+						console.error('❌ [SERVER] Error fetching paper trading positions:', error);
+						positions = [];
+					}
+					const positionsResponse = {
 						type: 'paper_trading_positions_response',
 						data: positions,
 						requestId
-					}));
+					};
+					console.log('📤 [SERVER] Sending response:', positionsResponse.type);
+					ws.send(JSON.stringify(positionsResponse));
 					break;
 
 				case 'get_paper_trading_orders':
 					const { accountId: orderAccountId, limit: orderLimit } = payload;
-					const orders = this.paperTradingService.getOrders(orderAccountId || 'default', orderLimit);
+					let orders = [];
+					try {
+						if (orderAccountId) {
+							const accountOrders = await this.paperTradingService.getOrders(orderAccountId, orderLimit);
+							orders = accountOrders || [];
+						} else {
+							// Get orders for all accounts
+							const allAccounts = [];
+							const user1Accounts = await this.paperTradingService.getUserAccounts('user1');
+							const user2Accounts = await this.paperTradingService.getUserAccounts('user2');
+							allAccounts.push(...user1Accounts, ...user2Accounts);
+
+							for (const account of allAccounts) {
+								const accountOrders = await this.paperTradingService.getOrders(account.id, orderLimit);
+								if (accountOrders && Array.isArray(accountOrders)) {
+									orders.push(...accountOrders);
+								}
+							}
+							// Sort orders by creation date
+							orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+						}
+					} catch (error) {
+						console.error('Error fetching paper trading orders:', error);
+						orders = [];
+					}
 					ws.send(JSON.stringify({
 						type: 'paper_trading_orders_response',
 						data: orders,
@@ -371,6 +458,14 @@ class CryptoBotServer {
 					}));
 					break;
 
+				case 'broadcast':
+					// Allow clients to broadcast messages to all connected clients
+					const { message: broadcastMessage } = payload;
+					if (broadcastMessage && broadcastMessage.type) {
+						this.broadcast(broadcastMessage);
+					}
+					break;
+
 				case 'get_market_data':
 					const { symbol: marketSymbol, timeframe: marketTimeframe } = payload;
 					try {
@@ -385,12 +480,20 @@ class CryptoBotServer {
 						}));
 					} catch (error) {
 						console.error('Error fetching market data:', error);
+						// Send fallback data instead of error
+						const fallbackData = {
+							symbol: marketSymbol,
+							timeframe: marketTimeframe,
+							currentPrice: 0,
+							ohlcv: [],
+							ticker_24hr: {},
+							technical_indicators: {},
+							full_indicators: {},
+							timestamp: Date.now()
+						};
 						ws.send(JSON.stringify({
-							type: 'error',
-							data: {
-								message: `Failed to fetch market data for ${marketSymbol}`,
-								timestamp: new Date().toISOString()
-							},
+							type: 'market_data_response',
+							data: fallbackData,
 							requestId
 						}));
 					}
@@ -421,7 +524,7 @@ class CryptoBotServer {
 
 	// Get analytics data
 	async getAnalyticsData() {
-		const signals = this.db.getAllSignals();
+		const signals = this.db.getSignals(1000); // Use getSignals instead of getAllSignals
 
 		// Calculate performance by cryptocurrency
 		const cryptoStats = {};
@@ -452,7 +555,7 @@ class CryptoBotServer {
 			signalTypes[signal.signal_type] = (signalTypes[signal.signal_type] || 0) + 1;
 
 			// Monthly performance
-			const month = new Date(signal.created_at).toLocaleString('en-US', { month: 'short' });
+			const month = new Date(signal.created_at).toLocaleString('en-US', { month: 'short' }); // Use created_at instead of createdAt
 			if (!monthlyData[month]) {
 				monthlyData[month] = { profitLoss: 0, count: 0 };
 			}
@@ -514,13 +617,13 @@ class CryptoBotServer {
 
 	// Get signals chart data
 	async getSignalsChartData() {
-		const signals = this.db.getAllSignals();
+		const signals = this.db.getSignals(1000); // Use getSignals instead of getAllSignals
 
 		// Group signals by date
 		const dailyData = {};
 
 		signals.forEach(signal => {
-			const date = new Date(signal.created_at).toISOString().split('T')[0];
+			const date = new Date(signal.created_at).toISOString().split('T')[0]; // Use created_at instead of createdAt
 
 			if (!dailyData[date]) {
 				dailyData[date] = {
@@ -610,9 +713,11 @@ process.on('SIGINT', () => {
 	server.shutdown();
 });
 
-// Start server
-const server = new CryptoBotServer();
-global.serverInstance = server;
-server.start();
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+	const server = new CryptoBotServer();
+	global.serverInstance = server;
+	server.start();
+}
 
 module.exports = CryptoBotServer;

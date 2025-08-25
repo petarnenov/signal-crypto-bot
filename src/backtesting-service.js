@@ -271,28 +271,28 @@ class BacktestingService {
 	async saveBacktestResults(config, results) {
 		try {
 			const backtestData = {
-				cryptocurrency: config.cryptocurrency,
-				timeframe: config.timeframe,
-				start_date: config.startDate,
-				end_date: config.endDate,
 				strategy: config.strategy,
-				initial_balance: results.initialBalance,
-				final_balance: results.finalBalance,
-				total_return: results.totalReturn,
-				total_trades: results.totalTrades,
-				win_rate: results.winRate,
-				max_drawdown: results.maxDrawdown,
+				symbol: config.cryptocurrency,
+				timeframe: config.timeframe,
+				startDate: config.startDate,
+				endDate: config.endDate,
+				initialBalance: results.initialBalance,
+				finalBalance: results.finalBalance,
+				totalReturn: results.totalReturn,
+				winRate: results.winRate,
+				maxDrawdown: results.maxDrawdown,
 				results: JSON.stringify(results),
-				created_at: new Date().toISOString()
+				createdAt: new Date().toISOString()
 			};
 
-			await this.db.execute(`
+			const stmt = this.db.db.prepare(`
 				INSERT INTO backtest_results (
-					cryptocurrency, timeframe, start_date, end_date, strategy,
-					initial_balance, final_balance, total_return, total_trades,
-					win_rate, max_drawdown, results, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, Object.values(backtestData));
+					strategy, symbol, timeframe, startDate, endDate, 
+					initialBalance, finalBalance, totalReturn, 
+					winRate, maxDrawdown, results, createdAt
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`);
+			stmt.run(Object.values(backtestData));
 
 			console.log('Backtest results saved to database');
 		} catch (error) {
@@ -303,11 +303,12 @@ class BacktestingService {
 	// Get all backtest results
 	async getBacktestResults(limit = 50) {
 		try {
-			const results = await this.db.all(`
+			const stmt = this.db.db.prepare(`
 				SELECT * FROM backtest_results 
-				ORDER BY created_at DESC 
+				ORDER BY createdAt DESC 
 				LIMIT ?
-			`, [limit]);
+			`);
+			const results = stmt.all([limit]);
 
 			return results;
 		} catch (error) {

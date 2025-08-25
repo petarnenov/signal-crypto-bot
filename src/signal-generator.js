@@ -6,15 +6,21 @@ const PaperTradingService = require('./paper-trading-service');
 
 class SignalGenerator {
 	constructor(options = {}) {
-		this.binance = new BinanceService(options.binance);
+		// Configure Binance service with sandbox mode
+		const binanceOptions = {
+			...options.binance,
+			useSandbox: true // Enable sandbox mode for paper trading
+		};
+
+		this.binance = new BinanceService(binanceOptions);
 		this.openai = new OpenAIService(process.env.OPENAI_API_KEY, options.openai);
 		this.telegramBot = options.telegramToken ? new CryptoSignalBot(options.telegramToken, options.telegram) : null;
-		this.db = new CryptoBotDatabase();
+		this.db = options.db || new CryptoBotDatabase();
 
-		// Initialize Paper Trading Service
+		// Initialize Paper Trading Service with sandbox Binance
 		this.paperTradingService = new PaperTradingService({
 			db: this.db,
-			binance: options.binance,
+			binance: binanceOptions,
 			openai: options.openai
 		});
 
@@ -239,6 +245,12 @@ class SignalGenerator {
 			);
 
 			if (signal) {
+				// Convert NEUTRAL signals to HOLD for database compatibility
+				if (signal.signalType && signal.signalType.toLowerCase() === 'neutral') {
+					signal.signalType = 'hold';
+					console.log(`Converted NEUTRAL signal to HOLD for ${cryptocurrency}`);
+				}
+
 				// Send signal to Telegram
 				if (this.telegramBot) {
 					await this.telegramBot.sendSignal(signal);
@@ -265,12 +277,12 @@ class SignalGenerator {
 							price: signal.price,
 							confidence: signal.confidence,
 							timestamp: new Date().toISOString(),
-							message: `🚨 ${signal.signal_type.toUpperCase()} ${signal.cryptocurrency} (${signal.timeframe}) - $${signal.price.toFixed(2)} - ${(signal.confidence * 100).toFixed(1)}% confidence`
+							message: `🚨 ${signal.signalType.toUpperCase()} ${signal.cryptocurrency} (${signal.timeframe}) - $${signal.price?.toFixed(2) || 'N/A'} - ${(signal.confidence * 100).toFixed(1)}% confidence`
 						}
 					});
 				}
 
-				console.log(`Signal generated and sent: ${cryptocurrency} ${signal.signal_type.toUpperCase()} (${timeframe})`);
+				console.log(`Signal generated and sent: ${cryptocurrency} ${signal.signalType.toUpperCase()} (${timeframe})`);
 			} else {
 				console.log(`No signal generated for ${cryptocurrency} (${timeframe}) - confidence below threshold`);
 			}
@@ -287,24 +299,11 @@ class SignalGenerator {
 
 		// Prepare market data for AI
 		const marketDataForAI = {
-			current_price: technical_indicators.current_price,
-			price_change_24h: technical_indicators.price_change_24h,
-			volume_24h: technical_indicators.volume_24h,
-			high_24h: ticker_24hr.highPrice,
-			low_24h: ticker_24hr.lowPrice,
-			open_24h: ticker_24hr.openPrice,
-			close_24h: ticker_24hr.lastPrice,
-			volume: ticker_24hr.volume,
-			price_change: ticker_24hr.priceChange,
-			price_change_percent: ticker_24hr.priceChangePercent,
-			recent_candles: ohlcv.slice(-10).map(candle => ({
-				timestamp: candle.timestamp,
-				open: candle.open,
-				high: candle.high,
-				low: candle.low,
-				close: candle.close,
-				volume: candle.volume
-			}))
+			symbol: marketData.symbol,
+			timeframe: marketData.timeframe,
+			currentPrice: technical_indicators.current_price,
+			ohlcv: ohlcv,
+			indicators: technical_indicators
 		};
 
 		// Prepare technical indicators for AI
@@ -504,142 +503,140 @@ class SignalGenerator {
 	// Execute signal in Paper Trading
 	async executeSignalInPaperTrading(signal) {
 		try {
-			console.log(`🔄 [PAPER TRADING] Starting execution for signal: ${signal.signal_type.toUpperCase()} ${signal.cryptocurrency}`);
+			// Convert NEUTRAL signals to HOLD for database compatibility
+			if (signal.signalType && signal.signalType.toLowerCase() === 'neutral') {
+				signal.signalType = 'hold';
+				console.log(`Converted NEUTRAL signal to HOLD for ${signal.cryptocurrency}`);
+			}
+
+			console.log(`🔄 [PAPER TRADING] Starting execution for signal: ${signal.signalType.toUpperCase()} ${signal.cryptocurrency}`);
 			console.log(`📊 [PAPER TRADING] Signal details:`, signal);
 
-			// Get all paper trading accounts
-			console.log(`🔍 [PAPER TRADING] Fetching paper trading accounts...`);
-			const accounts = await this.paperTradingService.getAllAccounts();
-			console.log(`📋 [PAPER TRADING] Found ${accounts.length} accounts:`, accounts);
-
-			if (accounts.length === 0) {
-				console.log('❌ [PAPER TRADING] No paper trading accounts found, creating test accounts...');
-				await this.paperTradingService.createTestAccount('user1', 10000, 'USDT');
-				await this.paperTradingService.createTestAccount('user2', 15000, 'USDT');
-				
-				// Get accounts again
-				const newAccounts = await this.paperTradingService.getAllAccounts();
-				console.log(`✅ [PAPER TRADING] Created ${newAccounts.length} test accounts`);
-				
-				if (newAccounts.length === 0) {
-					console.log('❌ [PAPER TRADING] Still no accounts found after creation');
-					return;
-				}
-				
-				// Use the new accounts
-				accounts = newAccounts;
+			// Only execute BUY and SELL signals, skip HOLD signals
+			if (signal.signalType.toLowerCase() === 'hold') {
+				console.log(`⏸️ [PAPER TRADING] Skipping HOLD signal for ${signal.cryptocurrency}`);
+				return { success: true, message: 'HOLD signal skipped' };
 			}
+
+			// Get all paper trading accounts
+			const accounts = await this.paperTradingService.getAllAccounts();
+			console.log(`🔍 [PAPER TRADING] Fetching paper trading accounts...`);
+			console.log(`📋 [PAPER TRADING] Found ${accounts.length} accounts:`, accounts);
 
 			// Execute signal for each account
 			for (const account of accounts) {
 				try {
-										// Check if account has sufficient balance
-					const quantity = this.calculateOrderQuantity(account, signal);
-					const requiredAmount = quantity * signal.price * 1.001; // Include commission
-					
-					console.log(`💰 [PAPER TRADING] Account ${account.id} balance: $${account.balance}, required: $${requiredAmount.toFixed(2)}`);
-					
-					if (account.balance < requiredAmount) {
-						console.log(`❌ [PAPER TRADING] Insufficient balance for account ${account.id}: $${account.balance} < $${requiredAmount.toFixed(2)}`);
-						continue;
+					console.log(`💰 [PAPER TRADING] Account ${account.id} balance: $${account.balance}, required: $${(account.balance * 0.25).toFixed(2)}`);
+
+					// Calculate order quantity based on account balance and signal
+					const quantity = await this.calculateOrderQuantity(account, signal);
+
+					// Check if quantity is valid (greater than 0)
+					if (quantity <= 0) {
+						console.log(`⚠️ [PAPER TRADING] Insufficient balance for account ${account.id}`);
+						return { success: false, error: 'Insufficient balance' };
 					}
 
-					// Create order data
-					const amount = quantity * signal.price;
-					const commission = amount * 0.001; // 0.1% commission
+					// Get current price for the order
+					const currentPrice = await this.binance.getCurrentPrice(signal.cryptocurrency);
+					console.log(`🚀 [PAPER TRADING] Executing order for account ${account.id}: ${signal.signalType.toUpperCase()} ${quantity} ${signal.cryptocurrency} @ $${currentPrice}`);
 
-					const orderData = {
-						accountId: account.id,
-						symbol: signal.cryptocurrency,
-						side: signal.signal_type.toUpperCase(),
-						type: 'MARKET',
-						quantity: quantity,
-						price: signal.price,
-						executionPrice: signal.price,
-						amount: amount,
-						commission: commission,
-						status: 'PENDING'
-					};
-
-					// Execute the order using placeMarketOrder
-					console.log(`🚀 [PAPER TRADING] Executing order for account ${account.id}: ${signal.signal_type.toUpperCase()} ${quantity} ${signal.cryptocurrency} @ $${signal.price}`);
-					const result = await this.paperTradingService.placeMarketOrder(
+					// Place market order
+					await this.paperTradingService.placeMarketOrder(
 						account.id,
 						signal.cryptocurrency,
-						signal.signal_type.toUpperCase(),
+						signal.signalType.toUpperCase(),
 						quantity,
-						signal.price
+						currentPrice
 					);
-					console.log(`✅ [PAPER TRADING] Order executed for account ${account.id}:`, result);
-
-					// Emit WebSocket notification for paper trading execution
-					if (global.serverInstance && global.serverInstance.broadcast) {
-						global.serverInstance.broadcast({
-							type: 'paper_trading_executed',
-							data: {
-								accountId: account.id,
-								symbol: signal.cryptocurrency,
-								side: signal.signal_type.toUpperCase(),
-								price: signal.price,
-								quantity: orderData.quantity,
-								timestamp: new Date().toISOString(),
-								message: `📊 Paper Trading: ${signal.signal_type.toUpperCase()} ${signal.cryptocurrency} executed for account ${account.id}`
-							}
-						});
-					}
 
 				} catch (error) {
 					console.error(`Error executing signal for account ${account.id}:`, error);
+					if (error.message.includes('Insufficient balance')) {
+						return { success: false, error: 'Insufficient balance' };
+					}
 				}
 			}
 
 		} catch (error) {
-			console.error('Error executing signal in Paper Trading:', error);
-			throw error;
+			console.error('Error executing signal in paper trading:', error);
+			return { success: false, error: error.message };
 		}
+
+		return { success: true, message: 'Signal executed successfully' };
 	}
 
 	// Ensure Paper Trading accounts exist
 	async ensurePaperTradingAccounts() {
 		try {
 			console.log('🔧 Ensuring Paper Trading accounts exist...');
-			const accounts = await this.paperTradingService.getAllAccounts();
-			
-			if (accounts.length === 0) {
-				console.log('📝 Creating test Paper Trading accounts...');
-				await this.paperTradingService.createTestAccount('user1', 10000, 'USDT');
-				await this.paperTradingService.createTestAccount('user2', 15000, 'USDT');
-				console.log('✅ Test Paper Trading accounts created');
+
+			// Check if user1 has accounts
+			const user1Accounts = await this.paperTradingService.getUserAccounts('user1');
+			const user2Accounts = await this.paperTradingService.getUserAccounts('user2');
+
+			if (user1Accounts.length === 0) {
+				console.log('📝 Creating test Paper Trading account for user1...');
+				await this.paperTradingService.createTestAccount('user1', 1000, 'USDT');
 			} else {
-				console.log(`✅ Found ${accounts.length} existing Paper Trading accounts`);
+				console.log(`✅ Found ${user1Accounts.length} existing accounts for user1`);
 			}
+
+			if (user2Accounts.length === 0) {
+				console.log('📝 Creating test Paper Trading account for user2...');
+				await this.paperTradingService.createTestAccount('user2', 1000, 'USDT');
+			} else {
+				console.log(`✅ Found ${user2Accounts.length} existing accounts for user2`);
+			}
+
+			const totalAccounts = user1Accounts.length + user2Accounts.length;
+			console.log(`✅ Total Paper Trading accounts: ${totalAccounts}`);
 		} catch (error) {
 			console.error('❌ Error ensuring Paper Trading accounts:', error);
 		}
 	}
 
 	// Calculate order quantity based on account balance and signal
-	calculateOrderQuantity(account, signal) {
+	async calculateOrderQuantity(account, signal) {
 		const balance = account.balance || 1000; // Default balance if not set
-		const maxAmount = balance * 0.1; // Use 10% of balance per trade
-		const quantity = maxAmount / signal.price;
+		const commission = 0.001; // 0.1% commission
+		const maxAmount = balance * 0.25; // Use 25% of balance per trade
+
+		// Get current price if signal price is null
+		let price = signal.price;
+		if (!price) {
+			try {
+				price = await this.binance.getCurrentPrice(signal.cryptocurrency);
+				console.log(`💰 [PAPER TRADING] Got current price for ${signal.cryptocurrency}: $${price}`);
+			} catch (error) {
+				console.error(`❌ [PAPER TRADING] Error getting current price for ${signal.cryptocurrency}:`, error);
+				return 0; // Return 0 if we can't get the price
+			}
+		}
+
+		// Calculate quantity considering commission
+		// totalCost = quantity * price + quantity * price * commission
+		// totalCost = quantity * price * (1 + commission)
+		// quantity = maxAmount / (price * (1 + commission))
+		const quantity = maxAmount / (price * (1 + commission));
+
 		return Math.round(quantity * 1000000) / 1000000; // Round to 6 decimal places
 	}
 
 	// Update configuration
-	async updateConfig(key, value, description = null) {
+	async updateConfig(key, value) {
 		try {
-					// For cryptocurrencies, validate and save only valid symbols to database
-		if (key === 'cryptocurrencies') {
-			const validatedValue = await this.validateCryptocurrencies(value);
-			console.log(`Configuration validation successful: ${key} = ${JSON.stringify(validatedValue)}`);
-			// Save only validated symbols to database
-			this.db.setConfig(key, validatedValue, description);
-			console.log(`Configuration updated with validated symbols: ${key} = ${JSON.stringify(validatedValue)}`);
-			return validatedValue;
-		} else {
+			// For cryptocurrencies, validate and save only valid symbols to database
+			if (key === 'cryptocurrencies') {
+				const validatedValue = await this.validateCryptocurrencies(value);
+				console.log(`Configuration validation successful: ${key} = ${JSON.stringify(validatedValue)}`);
+				// Save only validated symbols to database as JSON string
+				this.db.setConfig(key, JSON.stringify(validatedValue));
+				console.log(`Configuration updated with validated symbols: ${key} = ${JSON.stringify(validatedValue)}`);
+				return validatedValue;
+			} else {
 				// For other config keys, save normally
-				this.db.setConfig(key, value, description);
+				this.db.setConfig(key, value);
 				console.log(`Configuration updated: ${key} = ${JSON.stringify(value)}`);
 			}
 
@@ -908,6 +905,58 @@ class SignalGenerator {
 	// Utility function for sleep
 	sleep(ms) {
 		return new Promise(resolve => setTimeout(resolve, ms));
+	}
+
+	// Generate signal for cryptocurrency (alias for generateManualSignal)
+	async generateSignalForCryptocurrency(cryptocurrency, timeframe) {
+		return this.generateManualSignal(cryptocurrency, timeframe);
+	}
+
+	// Analyze market data
+	async analyzeMarketData(cryptocurrency, timeframe) {
+		try {
+			const marketData = await this.binance.getMarketData(cryptocurrency, timeframe);
+			if (!marketData) {
+				throw new Error(`Failed to get market data for ${cryptocurrency}`);
+			}
+
+			return {
+				cryptocurrency,
+				timeframe,
+				currentPrice: marketData.current_price || marketData.technical_indicators?.current_price,
+				volume: marketData.ticker_24hr?.volume || 0,
+				priceChange: marketData.ticker_24hr?.priceChange || 0,
+				priceChangePercent: marketData.ticker_24hr?.priceChangePercent || 0,
+				ohlcv: marketData.ohlcv,
+				technicalIndicators: marketData.technical_indicators
+			};
+		} catch (error) {
+			console.error(`Error analyzing market data for ${cryptocurrency}:`, error);
+			throw error;
+		}
+	}
+
+	// Track signal performance
+	async trackSignalPerformance(signal, currentPrice) {
+		try {
+			const entryPrice = signal.price;
+			const profitLoss = currentPrice - entryPrice;
+			const profitLossPercent = (profitLoss / entryPrice) * 100;
+
+			return {
+				signalId: signal.id,
+				cryptocurrency: signal.cryptocurrency,
+				entryPrice,
+				currentPrice,
+				profitLoss,
+				profitLossPercent,
+				signalType: signal.signalType,
+				timestamp: new Date().toISOString()
+			};
+		} catch (error) {
+			console.error('Error tracking signal performance:', error);
+			throw error;
+		}
 	}
 }
 

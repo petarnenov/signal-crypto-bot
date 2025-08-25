@@ -54,7 +54,7 @@ const useModal = () => {
 		showModal({ title, message, type: 'info', onConfirm });
 	}, [showModal]);
 
-	const showConfirm = useCallback((title, message, onConfirm, onCancel = null) => {
+	const showConfirm = useCallback((title, message, onConfirm, _onCancel = null) => {
 		showModal({
 			title,
 			message,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import useWebSocket from '../hooks/useWebSocket';
 
@@ -10,7 +10,7 @@ function Analytics() {
     monthlyPerformance: []
   });
   const [isLoading, setIsLoading] = useState(true);
-  const { sendMessage, ws } = useWebSocket();
+  const { sendMessage } = useWebSocket();
 
   const fetchAnalytics = useCallback(async () => {
     if (!sendMessage) {

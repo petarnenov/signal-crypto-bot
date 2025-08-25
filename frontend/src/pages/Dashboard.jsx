@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Activity, DollarSign, Users, Clock } from 'lucide-react';
 import SignalChart from '../components/SignalChart';
 import RecentSignals from '../components/RecentSignals';
@@ -78,44 +78,48 @@ function Dashboard() {
 			window.removeEventListener('signalGenerated', handleWebSocketUpdate);
 			window.removeEventListener('configUpdated', handleWebSocketUpdate);
 		};
-	}, [sendMessage]);
+	}, [sendMessage, lastUpdate]);
 
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-center h-full">
-				<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
+			<div data-testid="dashboard-page" className="flex items-center justify-center h-full">
+				<div data-testid="loading-spinner" className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500"></div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="p-6">
+		<div data-testid="dashboard-page" className="p-6">
 			<div className="mb-8">
-				<h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-				<p className="text-gray-600">Crypto Signal Bot Overview</p>
+				<h1 data-testid="dashboard-title" className="text-3xl font-bold text-gray-900">Dashboard</h1>
+				<p data-testid="dashboard-subtitle" className="text-gray-600">Crypto Signal Bot Overview</p>
 			</div>
 
 			{/* Stats Cards */}
-			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+			<div data-testid="stats-cards" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
 				<StatusCard
+					data-testid="total-signals-card"
 					title="Total Signals"
 					value={stats.totalSignals || 0}
 					icon={<Activity className="w-6 h-6" />}
 					color="blue"
 				/>
 				<StatusCard
+					data-testid="profitable-signals-card"
 					title="Profitable Signals"
 					value={stats.profitableSignals || 0}
 					icon={<TrendingUp className="w-6 h-6" />}
 					color="green"
 				/>
 				<StatusCard
+					data-testid="losing-signals-card"
 					title="Losing Signals"
 					value={stats.losingSignals || 0}
 					icon={<TrendingDown className="w-6 h-6" />}
 					color="red"
 				/>
 				<StatusCard
+					data-testid="avg-profit-loss-card"
 					title="Avg P/L"
 					value={`${(stats.avgProfitLoss || 0).toFixed(2)}%`}
 					icon={<DollarSign className="w-6 h-6" />}
@@ -124,31 +128,31 @@ function Dashboard() {
 			</div>
 
 			{/* Charts and Recent Signals */}
-			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-				<div className="bg-white rounded-lg shadow p-6">
-					<h2 className="text-xl font-semibold mb-4">Signal Performance</h2>
-					<SignalChart />
+			<div data-testid="charts-section" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				<div data-testid="signal-performance-card" className="bg-white rounded-lg shadow p-6">
+					<h2 data-testid="signal-performance-title" className="text-xl font-semibold mb-4">Signal Performance</h2>
+					<SignalChart data-testid="signal-performance-chart" />
 				</div>
 
-				<div className="bg-white rounded-lg shadow p-6">
-					<h2 className="text-xl font-semibold mb-4">Recent Signals</h2>
-					<RecentSignals signals={recentSignals} />
+				<div data-testid="recent-signals-card" className="bg-white rounded-lg shadow p-6">
+					<h2 data-testid="recent-signals-title" className="text-xl font-semibold mb-4">Recent Signals</h2>
+					<RecentSignals data-testid="dashboard-recent-signals" signals={recentSignals} />
 				</div>
 			</div>
 
 			{/* Quick Actions */}
-			<div className="mt-8 bg-white rounded-lg shadow p-6">
-				<h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<button className="flex items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+			<div data-testid="quick-actions-section" className="mt-8 bg-white rounded-lg shadow p-6">
+				<h2 data-testid="quick-actions-title" className="text-xl font-semibold mb-4">Quick Actions</h2>
+				<div data-testid="quick-actions-grid" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<button data-testid="generate-manual-signal-button" className="flex items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
 						<Activity className="w-5 h-5 mr-2" />
 						Generate Manual Signal
 					</button>
-					<button className="flex items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+					<button data-testid="manage-telegram-chats-button" className="flex items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
 						<Users className="w-5 h-5 mr-2" />
 						Manage Telegram Chats
 					</button>
-					<button className="flex items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+					<button data-testid="view-analysis-history-button" className="flex items-center justify-center p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
 						<Clock className="w-5 h-5 mr-2" />
 						View Analysis History
 					</button>

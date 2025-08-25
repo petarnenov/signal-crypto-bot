@@ -123,7 +123,7 @@ ${signals.map(signal => {
    Timeframe: ${signal.timeframe}
    Confidence: ${confidence}%
    Price: $${signal.price || 'N/A'}
-   Time: ${new Date(signal.created_at).toLocaleString()}`;
+   Time: ${new Date(signal.createdAt).toLocaleString()}`;
 				}).join('\n\n')}
                 `;
 
@@ -226,12 +226,12 @@ ${signalData.technical_indicators ?
 
 			for (const chat of chats) {
 				try {
-					await this.bot.sendMessage(chat.chat_id, message, {
+					await this.bot.sendMessage(chat.chatId, message, {
 						parse_mode: 'Markdown'
 					});
-					console.log(`Signal sent to chat ${chat.chat_id}`);
+					console.log(`Signal sent to chat ${chat.chatId}`);
 				} catch (error) {
-					console.error(`Failed to send signal to chat ${chat.chat_id}:`, error);
+					console.error(`Failed to send signal to chat ${chat.chatId}:`, error);
 				}
 			}
 		} catch (error) {

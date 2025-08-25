@@ -1,18 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import useModal from '../hooks/useModal';
 import useWebSocket from '../hooks/useWebSocket';
-
-const SignalContext = createContext();
+import { SignalContext } from './SignalContext.js';
 
 export function SignalProvider({ children, modalFunctions }) {
 	const [signals, setSignals] = useState([]);
 	const [stats, setStats] = useState({});
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState(null);
-	const { showSuccess, showError, showInfo } = modalFunctions || useModal();
-	const { sendMessage, ws } = useWebSocket();
+	const modalHook = useModal();
+	const { showSuccess, showError } = modalFunctions || modalHook;
+	const { sendMessage } = useWebSocket();
 
-	const fetchSignals = async (limit = 50) => {
+	const fetchSignals = useCallback(async (limit = 50) => {
 		if (!sendMessage) {
 			return;
 		}
@@ -23,9 +23,9 @@ export function SignalProvider({ children, modalFunctions }) {
 		} catch (err) {
 			setError(err.message);
 		}
-	};
+	}, [sendMessage]);
 
-	const fetchStats = async () => {
+	const fetchStats = useCallback(async () => {
 		if (!sendMessage) {
 			return;
 		}
@@ -36,7 +36,7 @@ export function SignalProvider({ children, modalFunctions }) {
 			console.error('Error fetching stats:', err);
 			// Don't throw error, just log it
 		}
-	};
+	}, [sendMessage]);
 
 	const generateManualSignal = async (cryptocurrency, timeframe) => {
 		if (!sendMessage) {
@@ -44,7 +44,7 @@ export function SignalProvider({ children, modalFunctions }) {
 		}
 		try {
 			const newSignal = await sendMessage('generate_signal', { cryptocurrency, timeframe });
-			setSignals(prev => [newSignal, ...prev]);
+			setSignals(prev => [newSignal, ...(Array.isArray(prev) ? prev : [])]);
 			showSuccess('Success', `Signal generated successfully for ${cryptocurrency} (${timeframe})`);
 			return newSignal;
 		} catch (err) {
@@ -123,7 +123,7 @@ export function SignalProvider({ children, modalFunctions }) {
 		if (sendMessage) {
 			tryFetchData();
 		}
-	}, [sendMessage]);
+	}, [sendMessage, fetchSignals, fetchStats]);
 
 	const value = {
 		signals,
@@ -144,10 +144,4 @@ export function SignalProvider({ children, modalFunctions }) {
 	);
 }
 
-export function useSignals() {
-	const context = useContext(SignalContext);
-	if (context === undefined) {
-		throw new Error('useSignals must be used within a SignalProvider');
-	}
-	return context;
-}
+

@@ -4,20 +4,25 @@ const fs = require('fs');
 
 class CryptoBotDatabase {
 	constructor(dbPath = 'crypto_bot.db') {
-		this.dbPath = path.join(__dirname, '..', dbPath);
+		this.dbPath = dbPath;
 		this.db = null;
 		this.init();
 	}
 
 	init() {
 		try {
-			// Create database directory if it doesn't exist
-			const dbDir = path.dirname(this.dbPath);
-			if (!fs.existsSync(dbDir)) {
-				fs.mkdirSync(dbDir, { recursive: true });
+			// Handle in-memory database
+			if (this.dbPath.startsWith(':memory:')) {
+				this.db = new Database(':memory:');
+			} else {
+				// Create database directory if it doesn't exist
+				const dbDir = path.dirname(this.dbPath);
+				if (!fs.existsSync(dbDir)) {
+					fs.mkdirSync(dbDir, { recursive: true });
+				}
+				this.db = new Database(this.dbPath);
 			}
 
-			this.db = new Database(this.dbPath);
 			this.db.pragma('journal_mode = WAL');
 			this.db.pragma('foreign_keys = ON');
 
@@ -32,94 +37,88 @@ class CryptoBotDatabase {
 	}
 
 	initSchema() {
-		const schemaPath = path.join(__dirname, 'schema.sql');
-		const schema = fs.readFileSync(schemaPath, 'utf8');
+		try {
+			const schemaPath = path.join(__dirname, 'schema.sql');
+			const schema = fs.readFileSync(schemaPath, 'utf8');
 
-		// Split schema into individual statements
-		const statements = schema
-			.split(';')
-			.map(stmt => stmt.trim())
-			.filter(stmt => stmt.length > 0);
+			// Split schema into individual statements
+			const statements = schema
+				.split(';')
+				.map(stmt => stmt.trim())
+				.filter(stmt => stmt.length > 0);
 
-		// Execute each statement (excluding INSERT statements)
-		statements.forEach(statement => {
-			if (statement.length > 0 && !statement.toUpperCase().startsWith('INSERT')) {
-				this.db.exec(statement);
-			}
-		});
+			// Execute each statement (excluding INSERT statements)
+			statements.forEach(statement => {
+				if (statement.length > 0 && !statement.toUpperCase().startsWith('INSERT')) {
+					try {
+						this.db.exec(statement);
+					} catch (error) {
+						console.warn(`Failed to execute schema statement: ${statement.substring(0, 50)}...`, error.message);
+					}
+				}
+			});
+		} catch (error) {
+			console.error('Failed to initialize schema:', error);
+			throw error;
+		}
 	}
 
 	// Signal methods
 	createSignal(signalData) {
 		const stmt = this.db.prepare(`
-            INSERT INTO signals (cryptocurrency, signal_type, timeframe, price, confidence, ai_reasoning, technical_indicators)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
+			INSERT INTO signals (
+				cryptocurrency, signalType, timeframe, price, confidence,
+				aiReasoning, technicalIndicators, createdAt
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`);
 
-		const result = stmt.run(
+		return stmt.run(
 			signalData.cryptocurrency,
-			signalData.signal_type,
+			signalData.signalType,
 			signalData.timeframe,
 			signalData.price,
 			signalData.confidence,
-			signalData.ai_reasoning,
-			JSON.stringify(signalData.technical_indicators)
+			signalData.aiReasoning,
+			signalData.technicalIndicators ? JSON.stringify(signalData.technicalIndicators) : null,
+			signalData.createdAt || new Date().toISOString()
 		);
-
-		// Emit WebSocket notification for new signal
-		if (global.serverInstance && global.serverInstance.broadcast) {
-			global.serverInstance.broadcast({
-				type: 'data_updated',
-				data: {
-					table: 'signals',
-					action: 'created',
-					signal_id: result.lastInsertRowid,
-					timestamp: new Date().toISOString(),
-					message: `📊 New signal added: ${signalData.cryptocurrency} ${signalData.signal_type.toUpperCase()}`
-				}
-			});
-		}
-
-		return result.lastInsertRowid;
 	}
 
-	getSignals(limit = 100, offset = 0) {
+	getSignals(limit = 100) {
 		const stmt = this.db.prepare(`
-            SELECT * FROM signals 
-            ORDER BY created_at DESC 
-            LIMIT ? OFFSET ?
-        `);
-
-		return stmt.all(limit, offset);
+			SELECT * FROM signals 
+			ORDER BY createdAt DESC 
+			LIMIT ?
+		`);
+		return stmt.all(limit);
 	}
 
-	getSignalsByCrypto(cryptocurrency, limit = 50) {
+	getSignalsByCryptocurrency(cryptocurrency, limit = 100) {
 		const stmt = this.db.prepare(`
-            SELECT * FROM signals 
-            WHERE cryptocurrency = ? 
-            ORDER BY created_at DESC 
-            LIMIT ?
-        `);
-
+			SELECT * FROM signals 
+			WHERE cryptocurrency = ? 
+			ORDER BY createdAt DESC 
+			LIMIT ?
+		`);
 		return stmt.all(cryptocurrency, limit);
 	}
 
-	getAllSignals() {
+	getSignalsByTimeframe(timeframe, limit = 100) {
 		const stmt = this.db.prepare(`
-            SELECT * FROM signals 
-            ORDER BY created_at DESC
-        `);
-
-		return stmt.all();
+			SELECT * FROM signals 
+			WHERE timeframe = ? 
+			ORDER BY createdAt DESC 
+			LIMIT ?
+		`);
+		return stmt.all(timeframe, limit);
 	}
 
 	updateSignalStatus(signalId, status) {
 		const stmt = this.db.prepare(`
-            UPDATE signals 
-            SET status = ?, executed_at = CASE WHEN ? = 'executed' THEN CURRENT_TIMESTAMP ELSE executed_at END
-            WHERE id = ?
-        `);
-
+			UPDATE signals 
+			SET status = ?, executedAt = CASE WHEN ? = 'executed' THEN CURRENT_TIMESTAMP ELSE executedAt END
+			WHERE id = ?
+		`);
 		return stmt.run(status, status, signalId);
 	}
 
@@ -142,8 +141,14 @@ class CryptoBotDatabase {
 		}
 	}
 
+	getConfigRaw(key) {
+		const stmt = this.db.prepare('SELECT value FROM config WHERE key = ?');
+		const result = stmt.get(key);
+		return result ? result.value : null;
+	}
+
 	getAllConfig() {
-		const stmt = this.db.prepare('SELECT key, value, description FROM config');
+		const stmt = this.db.prepare('SELECT key, value FROM config');
 		const results = stmt.all();
 
 		const config = {};
@@ -152,29 +157,42 @@ class CryptoBotDatabase {
 				// Try to parse as JSON first
 				config[row.key] = JSON.parse(row.value);
 			} catch (error) {
-				// If parsing fails, it might be a simple string
-				// Check if it looks like a JSON string (starts with [ or {)
-				if (row.value.trim().startsWith('[') || row.value.trim().startsWith('{')) {
+				// If parsing fails, check if it's a number
+				const trimmedValue = row.value.trim();
+				if (!isNaN(trimmedValue) && trimmedValue !== '') {
+					// Convert to number if it's numeric
+					config[row.key] = Number(trimmedValue);
+				} else if (trimmedValue.startsWith('[') || trimmedValue.startsWith('{')) {
 					console.warn(`Failed to parse JSON for config key '${row.key}':`, error.message);
+					config[row.key] = row.value;
+				} else {
+					// Keep as string
+					config[row.key] = row.value;
 				}
-				config[row.key] = row.value;
 			}
 		});
 
 		return config;
 	}
 
-	setConfig(key, value, description = null) {
+	setConfig(key, value) {
+		try {
+			const stmt = this.db.prepare(`
+				INSERT OR REPLACE INTO config (key, value) 
+				VALUES (?, ?)
+			`);
+			return stmt.run(key, value);
+		} catch (error) {
+			console.error(`Failed to set config for key '${key}':`, error);
+			throw error;
+		}
+	}
+
+	updateConfig(key, value) {
 		const stmt = this.db.prepare(`
-            INSERT OR REPLACE INTO config (key, value, description, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        `);
-
-		// For simple strings, don't double-encode them
-		const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
-		const result = stmt.run(key, stringValue, description);
-
-		return result;
+			UPDATE config SET value = ?, updatedAt = ? WHERE key = ?
+		`);
+		return stmt.run(value, new Date().toISOString(), key);
 	}
 
 	// Telegram chat methods
@@ -204,18 +222,18 @@ class CryptoBotDatabase {
 	// AI analysis methods
 	saveAIAnalysis(analysisData) {
 		const stmt = this.db.prepare(`
-            INSERT INTO ai_analysis (cryptocurrency, timeframe, market_data, ai_response, tokens_used, cost, analysis_time_ms)
+            INSERT INTO ai_analysis (cryptocurrency, timeframe, marketData, aiResponse, tokensUsed, cost, analysisTimeMs)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
 
 		const result = stmt.run(
 			analysisData.cryptocurrency,
 			analysisData.timeframe,
-			JSON.stringify(analysisData.market_data),
-			analysisData.ai_response,
-			analysisData.tokens_used,
+			JSON.stringify(analysisData.marketData),
+			analysisData.aiResponse,
+			analysisData.tokensUsed,
 			analysisData.cost,
-			analysisData.analysis_time_ms
+			analysisData.analysisTimeMs
 		);
 
 		return result.lastInsertRowid;
@@ -225,7 +243,7 @@ class CryptoBotDatabase {
 		const stmt = this.db.prepare(`
             SELECT * FROM ai_analysis 
             WHERE cryptocurrency = ? 
-            ORDER BY created_at DESC 
+            ORDER BY createdAt DESC 
             LIMIT ?
         `);
 
@@ -235,18 +253,18 @@ class CryptoBotDatabase {
 	// Performance metrics methods
 	addPerformanceMetric(metricData) {
 		const stmt = this.db.prepare(`
-            INSERT INTO performance_metrics (signal_id, cryptocurrency, entry_price, exit_price, profit_loss, profit_loss_percent, duration_hours)
+            INSERT INTO performance_metrics (signalId, cryptocurrency, entryPrice, exitPrice, profitLoss, profitLossPercent, durationHours)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `);
 
 		return stmt.run(
-			metricData.signal_id,
+			metricData.signalId,
 			metricData.cryptocurrency,
-			metricData.entry_price,
-			metricData.exit_price,
-			metricData.profit_loss,
-			metricData.profit_loss_percent,
-			metricData.duration_hours
+			metricData.entryPrice,
+			metricData.exitPrice,
+			metricData.profitLoss,
+			metricData.profitLossPercent,
+			metricData.durationHours
 		);
 	}
 
@@ -254,9 +272,9 @@ class CryptoBotDatabase {
 		let query = `
             SELECT 
                 COUNT(*) as total_signals,
-                AVG(profit_loss_percent) as avg_profit_loss,
-                SUM(CASE WHEN profit_loss_percent > 0 THEN 1 ELSE 0 END) as profitable_signals,
-                SUM(CASE WHEN profit_loss_percent <= 0 THEN 1 ELSE 0 END) as losing_signals
+                AVG(profitLossPercent) as avg_profit_loss,
+                SUM(CASE WHEN profitLossPercent > 0 THEN 1 ELSE 0 END) as profitable_signals,
+                SUM(CASE WHEN profitLossPercent <= 0 THEN 1 ELSE 0 END) as losing_signals
             FROM performance_metrics
         `;
 
@@ -273,48 +291,74 @@ class CryptoBotDatabase {
 	// Paper trading methods
 	createPaperTradingAccount(accountData) {
 		const stmt = this.db.prepare(`
-			INSERT INTO paper_trading_accounts (
-				id, user_id, balance, currency, equity, unrealized_pnl, 
-				realized_pnl, total_trades, winning_trades, losing_trades, 
-				created_at, updated_at
+			INSERT OR REPLACE INTO paper_trading_accounts (
+				id, userId, balance, currency, equity, unrealizedPnl, realizedPnl,
+				totalTrades, winningTrades, losingTrades, createdAt, updatedAt
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`);
 
 		return stmt.run(
 			accountData.id,
-			accountData.userId || accountData.user_id,
+			accountData.userId,
 			accountData.balance,
-			accountData.currency,
+			accountData.currency || 'USDT',
 			accountData.equity,
-			accountData.unrealizedPnL,
-			accountData.realizedPnL,
-			accountData.totalTrades,
-			accountData.winningTrades,
-			accountData.losingTrades,
-			accountData.createdAt,
-			accountData.updatedAt
+			accountData.unrealizedPnl || 0,
+			accountData.realizedPnl || 0,
+			accountData.totalTrades || 0,
+			accountData.winningTrades || 0,
+			accountData.losingTrades || 0,
+			accountData.createdAt || new Date().toISOString(),
+			accountData.updatedAt || new Date().toISOString()
 		);
 	}
 
 	updatePaperTradingAccount(accountData) {
 		const stmt = this.db.prepare(`
 			UPDATE paper_trading_accounts SET
-				balance = ?, equity = ?, unrealized_pnl = ?, realized_pnl = ?,
-				total_trades = ?, winning_trades = ?, losing_trades = ?, updated_at = ?
+				balance = ?, equity = ?, unrealizedPnl = ?, realizedPnl = ?,
+				totalTrades = ?, winningTrades = ?, losingTrades = ?, updatedAt = ?
 			WHERE id = ?
 		`);
 
 		return stmt.run(
 			accountData.balance,
 			accountData.equity,
-			accountData.unrealizedPnL,
-			accountData.realizedPnL,
-			accountData.totalTrades,
-			accountData.winningTrades,
-			accountData.losingTrades,
-			accountData.updatedAt,
+			accountData.unrealizedPnl || 0,
+			accountData.realizedPnl || 0,
+			accountData.totalTrades || 0,
+			accountData.winningTrades || 0,
+			accountData.losingTrades || 0,
+			accountData.updatedAt || new Date().toISOString(),
 			accountData.id
 		);
+	}
+
+	createPaperTradingPosition(positionData) {
+		const stmt = this.db.prepare(`
+			INSERT INTO paper_trading_positions (
+				id, accountId, symbol, side, quantity, avgPrice, unrealizedPnl, createdAt, updatedAt
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`);
+
+		return stmt.run(
+			positionData.id,
+			positionData.accountId,
+			positionData.symbol,
+			positionData.side,
+			positionData.quantity,
+			positionData.avgPrice,
+			positionData.unrealizedPnl || 0,
+			positionData.createdAt || new Date().toISOString(),
+			positionData.updatedAt || new Date().toISOString()
+		);
+	}
+
+	getPaperTradingAccounts() {
+		const stmt = this.db.prepare(`
+			SELECT * FROM paper_trading_accounts ORDER BY createdAt DESC
+		`);
+		return stmt.all();
 	}
 
 	getPaperTradingAccount(accountId) {
@@ -326,7 +370,7 @@ class CryptoBotDatabase {
 
 	getUserPaperTradingAccounts(userId) {
 		const stmt = this.db.prepare(`
-			SELECT * FROM paper_trading_accounts WHERE user_id = ? ORDER BY created_at DESC
+			SELECT * FROM paper_trading_accounts WHERE userId = ? ORDER BY createdAt DESC
 		`);
 		return stmt.all(userId);
 	}
@@ -334,9 +378,9 @@ class CryptoBotDatabase {
 	createPaperTradingOrder(orderData) {
 		const stmt = this.db.prepare(`
 			INSERT INTO paper_trading_orders (
-				id, account_id, symbol, side, type, quantity, price,
-				execution_price, amount, commission, status, created_at, filled_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				id, accountId, symbol, side, type, quantity, price, executionPrice,
+				amount, commission, status, isRealOrder, binanceOrderId, createdAt, filledAt
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`);
 
 		return stmt.run(
@@ -351,7 +395,9 @@ class CryptoBotDatabase {
 			orderData.amount,
 			orderData.commission,
 			orderData.status,
-			orderData.createdAt,
+			orderData.isRealOrder || 0,
+			orderData.binanceOrderId,
+			orderData.createdAt || new Date().toISOString(),
 			orderData.filledAt
 		);
 	}
@@ -359,7 +405,8 @@ class CryptoBotDatabase {
 	updatePaperTradingOrder(orderData) {
 		const stmt = this.db.prepare(`
 			UPDATE paper_trading_orders SET
-				execution_price = ?, amount = ?, commission = ?, status = ?, filled_at = ?
+				executionPrice = ?, amount = ?, commission = ?, status = ?,
+				filledAt = ?
 			WHERE id = ?
 		`);
 
@@ -368,7 +415,7 @@ class CryptoBotDatabase {
 			orderData.amount,
 			orderData.commission,
 			orderData.status,
-			orderData.filledAt,
+			orderData.filledAt || orderData.filledAt,
 			orderData.id
 		);
 	}
@@ -376,8 +423,8 @@ class CryptoBotDatabase {
 	getPaperTradingOrders(accountId, limit = 100) {
 		const stmt = this.db.prepare(`
 			SELECT * FROM paper_trading_orders 
-			WHERE account_id = ? 
-			ORDER BY created_at DESC 
+			WHERE accountId = ? 
+			ORDER BY createdAt DESC 
 			LIMIT ?
 		`);
 		return stmt.all(accountId, limit);
@@ -386,9 +433,9 @@ class CryptoBotDatabase {
 	updatePaperTradingPosition(positionData) {
 		const stmt = this.db.prepare(`
 			INSERT OR REPLACE INTO paper_trading_positions (
-				id, account_id, symbol, side, quantity, avg_price,
-				unrealized_pnl, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				id, accountId, symbol, side, quantity, avgPrice, currentPrice,
+				unrealizedPnl, createdAt, updatedAt
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`);
 
 		return stmt.run(
@@ -398,15 +445,16 @@ class CryptoBotDatabase {
 			positionData.side,
 			positionData.quantity,
 			positionData.avgPrice,
-			positionData.unrealizedPnL,
-			positionData.createdAt,
-			positionData.updatedAt
+			positionData.currentPrice,
+			positionData.unrealizedPnl || 0,
+			positionData.createdAt || new Date().toISOString(),
+			positionData.updatedAt || new Date().toISOString()
 		);
 	}
 
 	getPaperTradingPositions(accountId) {
 		const stmt = this.db.prepare(`
-			SELECT * FROM paper_trading_positions WHERE account_id = ?
+			SELECT * FROM paper_trading_positions WHERE accountId = ?
 		`);
 		return stmt.all(accountId);
 	}
@@ -416,37 +464,6 @@ class CryptoBotDatabase {
 			DELETE FROM paper_trading_positions WHERE id = ?
 		`);
 		return stmt.run(positionId);
-	}
-
-	// Seed database with default data (call manually when needed)
-	seedDatabase() {
-		try {
-			console.log('Seeding database with default configuration...');
-
-			// Insert default configuration
-			const defaultConfig = [
-				['timeframes', '["1m", "5m", "15m", "1h", "4h", "1d"]', 'Available timeframes for analysis'],
-				['cryptocurrencies', '["BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "XRPUSDT"]', 'Supported cryptocurrencies'],
-				['ai_model', 'gpt-4', 'OpenAI model to use'],
-				['ai_temperature', '0.7', 'AI temperature setting'],
-				['ai_max_tokens', '500', 'Maximum tokens for AI response'],
-				['signal_confidence_threshold', '0.7', 'Minimum confidence to send signal'],
-				['max_signals_per_hour', '10', 'Rate limiting for signals']
-			];
-
-			const stmt = this.db.prepare(`
-				INSERT OR REPLACE INTO config (key, value, description) VALUES (?, ?, ?)
-			`);
-
-			defaultConfig.forEach(([key, value, description]) => {
-				stmt.run(key, value, description);
-			});
-
-			console.log('Database seeded successfully');
-		} catch (error) {
-			console.error('Error seeding database:', error);
-			throw error;
-		}
 	}
 
 	// Utility methods

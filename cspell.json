@@ -104,11 +104,19 @@
     "думи",
     "добавят",
     "настройките",
-    "потребителя"
+    "потребителя",
+    "DOTUSDT",
+    "XRPUSDT",
+    "LINKUSDT",
+    "backtest",
+    "Backtest",
+    "stoch",
+    "Klines"
   ],
   "ignorePaths": [
     "node_modules/**",
     "frontend/node_modules/**",
+    "**/node_modules/**",
     "dist/**",
     "build/**",
     "coverage/**",

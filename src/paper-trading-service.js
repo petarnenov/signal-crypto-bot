@@ -16,7 +16,7 @@ class PaperTradingService {
 
 		// Load existing positions from database
 		this.loadPositionsFromDatabase();
-		
+
 		// Initialize with some test accounts if none exist
 		this.initializeTestAccounts();
 	}
@@ -26,18 +26,18 @@ class PaperTradingService {
 		try {
 			const user1Accounts = await this.getUserAccounts('user1');
 			const user2Accounts = await this.getUserAccounts('user2');
-			
+
 			// Create test accounts if none exist
 			if (user1Accounts.length === 0) {
 				await this.createTestAccount('user1', 10000, 'USDT');
 				await this.createTestAccount('user1', 5000, 'USDT');
 			}
-			
+
 			if (user2Accounts.length === 0) {
 				await this.createTestAccount('user2', 15000, 'USDT');
 				await this.createTestAccount('user2', 7500, 'USDT');
 			}
-			
+
 			console.log('Test accounts initialized');
 		} catch (error) {
 			console.error('Error initializing test accounts:', error);
@@ -54,7 +54,7 @@ class PaperTradingService {
 				balance: initialBalance,
 				currency: currency,
 				equity: initialBalance,
-				unrealizedPnL: 0,
+				unrealizedPnl: 0,
 				realizedPnL: 0,
 				totalTrades: 0,
 				winningTrades: 0,
@@ -84,7 +84,7 @@ class PaperTradingService {
 				balance: initialBalance,
 				currency: currency,
 				equity: initialBalance,
-				unrealizedPnL: 0,
+				unrealizedPnl: 0,
 				realizedPnL: 0,
 				totalTrades: 0,
 				winningTrades: 0,
@@ -127,6 +127,8 @@ class PaperTradingService {
 		}
 	}
 
+
+
 	// Get all accounts for a user
 	async getUserAccounts(userId) {
 		try {
@@ -150,65 +152,188 @@ class PaperTradingService {
 		}
 	}
 
-	// Place a market order
-	async placeMarketOrder(accountId, symbol, side, quantity, price = null) {
-		try {
-			const account = await this.getAccount(accountId);
-			if (!account) {
-				throw new Error('Account not found');
-			}
+	// Validate order parameters and account balance
+	validateOrder(account, symbol, side, quantity, price) {
+		if (!account) {
+			throw new Error('Account not found');
+		}
 
-			// Get current market price if not provided
-			if (!price) {
-				const marketData = await this.binance.getMarketData(symbol, '1m');
-				price = marketData.current_price;
-			}
-
-			// Apply slippage
-			const executionPrice = side === 'BUY' ?
-				price * (1 + this.slippage) :
-				price * (1 - this.slippage);
-
-			// Calculate order details
-			const orderAmount = quantity * executionPrice;
+		if (side === 'BUY') {
+			const orderAmount = quantity * price;
 			const commission = orderAmount * this.commission;
 			const totalCost = orderAmount + commission;
 
-			// Validate balance for buy orders
-			if (side === 'BUY' && account.balance < totalCost) {
+			if (account.balance < totalCost) {
 				throw new Error('Insufficient balance');
 			}
+		}
+	}
 
-			// Create order
-			const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-			const order = {
-				id: orderId,
-				accountId: accountId,
+	// Create a market order (either real or simulated)
+	async createMarketOrder(symbol, side, quantity, price) {
+		try {
+			console.log(`🌐 [PAPER TRADING] Attempting to place real order to Binance sandbox...`);
+			const binanceOrder = await this.binance.placeMarketOrder(symbol, side, quantity);
+
+			console.log(`✅ [PAPER TRADING] Real order placed to Binance:`, {
+				binanceOrderId: binanceOrder.orderId,
+				symbol: binanceOrder.symbol,
+				side: binanceOrder.side,
+				quantity: binanceOrder.quantity,
+				executionPrice: binanceOrder.executionPrice,
+				amount: binanceOrder.amount,
+				commission: binanceOrder.commission
+			});
+
+			return {
+				order: binanceOrder,
+				isRealOrder: true
+			};
+		} catch (error) {
+			console.log(`⚠️ [PAPER TRADING] Could not place real order to Binance: ${error.message}`);
+			console.log(`📝 [PAPER TRADING] Simulating order locally with real market price`);
+
+			// Simulate order execution with real price
+			const executionPrice = price;
+			const simulatedAmount = quantity * executionPrice;
+			const simulatedCommission = simulatedAmount * this.commission;
+
+			const simulatedOrder = {
+				orderId: `sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
 				symbol: symbol,
 				side: side,
-				type: 'MARKET',
 				quantity: quantity,
-				price: price,
 				executionPrice: executionPrice,
-				amount: orderAmount,
-				commission: commission,
+				amount: simulatedAmount,
+				commission: simulatedCommission,
 				status: 'FILLED',
-				createdAt: new Date().toISOString(),
-				filledAt: new Date().toISOString()
+				createdAt: new Date(),
+				filledAt: new Date()
 			};
 
-			// Execute the order
+			return {
+				order: simulatedOrder,
+				isRealOrder: false
+			};
+		}
+	}
+
+	// Create local order record
+	createLocalOrder(binanceOrder, accountId, symbol, side, quantity, price, isRealOrder) {
+		const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+		return {
+			id: orderId,
+			binanceOrderId: binanceOrder.orderId,
+			accountId: accountId,
+			symbol: symbol,
+			side: side,
+			type: 'MARKET',
+			quantity: quantity,
+			price: price,
+			executionPrice: binanceOrder.executionPrice,
+			amount: binanceOrder.amount,
+			commission: binanceOrder.commission,
+			status: binanceOrder.status,
+			createdAt: binanceOrder.createdAt instanceof Date ? binanceOrder.createdAt.toISOString() : binanceOrder.createdAt,
+			filledAt: binanceOrder.filledAt instanceof Date ? binanceOrder.filledAt.toISOString() : binanceOrder.filledAt,
+			isRealOrder: isRealOrder
+		};
+	}
+
+	// Send WebSocket notifications
+	sendOrderNotification(order, binanceOrder, isRealOrder) {
+		const orderType = isRealOrder ? 'REAL' : 'SIMULATED';
+
+		if (global.serverInstance && global.serverInstance.broadcast) {
+			global.serverInstance.broadcast({
+				type: 'paper_trading_order_executed',
+				data: {
+					orderId: order.id,
+					binanceOrderId: binanceOrder.orderId,
+					accountId: order.accountId,
+					symbol: order.symbol,
+					side: order.side,
+					quantity: order.quantity,
+					executionPrice: binanceOrder.executionPrice,
+					amount: binanceOrder.amount,
+					commission: binanceOrder.commission,
+					isRealOrder: isRealOrder,
+					timestamp: new Date().toISOString(),
+					message: `📊 Paper Trading: ${order.side} ${order.quantity} ${order.symbol} executed @ $${binanceOrder.executionPrice} (${orderType})`
+				}
+			});
+		}
+	}
+
+	// Send error notification
+	sendErrorNotification(accountId, symbol, side, error) {
+		if (global.serverInstance && global.serverInstance.broadcast) {
+			global.serverInstance.broadcast({
+				type: 'paper_trading_error',
+				data: {
+					accountId: accountId,
+					symbol: symbol,
+					side: side,
+					error: error.message,
+					timestamp: new Date().toISOString(),
+					message: `❌ Paper Trading Error: ${error.message}`
+				}
+			});
+		}
+	}
+
+	// Place a market order (refactored)
+	async placeMarketOrder(accountId, symbol, side, quantity, price = null) {
+		try {
+			console.log(`🚀 [PAPER TRADING] Placing ${side} market order for account ${accountId}: ${quantity} ${symbol}`);
+
+			// Get account
+			const account = await this.getAccount(accountId);
+
+			// Get current market price if not provided
+			if (!price) {
+				try {
+					const currentPrice = await this.binance.getCurrentPrice(symbol);
+					price = currentPrice;
+					console.log(`💰 [PAPER TRADING] Current ${symbol} price: $${price}`);
+				} catch (error) {
+					console.log(`⚠️ [PAPER TRADING] Could not get real price for ${symbol}, using provided price or default`);
+					if (!price) {
+						price = 50000; // Default price for BTC, will be adjusted based on symbol
+						if (symbol === 'ETHUSDT') price = 3000;
+						if (symbol === 'ADAUSDT') price = 0.5;
+						if (symbol === 'DOTUSDT') price = 7;
+					}
+				}
+			}
+
+			// Validate order
+			this.validateOrder(account, symbol, side, quantity, price);
+
+			// Create market order (real or simulated)
+			const { order: binanceOrder, isRealOrder } = await this.createMarketOrder(symbol, side, quantity, price);
+
+			// Create local order record
+			const order = this.createLocalOrder(binanceOrder, accountId, symbol, side, quantity, price, isRealOrder);
+
+			// Execute the order locally (update account balance and positions)
 			await this.executeOrder(order, account);
 
-			// Save order
-			this.orders.set(orderId, order);
+			// Save order to database
+			this.orders.set(order.id, order);
 			await this.saveOrder(order);
 
-			console.log(`Executed ${side} order for ${quantity} ${symbol} at $${executionPrice}`);
+			// Send notification
+			this.sendOrderNotification(order, binanceOrder, isRealOrder);
+
+			const orderType = isRealOrder ? 'REAL' : 'SIMULATED';
+			console.log(`✅ [PAPER TRADING] ${orderType} order executed successfully for account ${accountId}: ${side} ${quantity} ${symbol} @ $${binanceOrder.executionPrice}`);
+
 			return order;
 
 		} catch (error) {
-			console.error('Error placing market order:', error);
+			console.error(`❌ [PAPER TRADING] Error placing market order:`, error);
+			this.sendErrorNotification(accountId, symbol, side, error);
 			throw error;
 		}
 	}
@@ -288,109 +413,123 @@ class PaperTradingService {
 		}
 	}
 
-	// Execute an order
+	// Handle buy order execution
+	async executeBuyOrder(order, account) {
+		// Deduct balance
+		const totalCost = order.amount + order.commission;
+		account.balance -= totalCost;
+
+		// Update or create position
+		const positionKey = `${account.id}_${order.symbol}`;
+		let position = this.positions.get(positionKey);
+
+		// If not in memory, try to load from database
+		if (!position) {
+			const dbPositions = this.db.getPaperTradingPositions(account.id);
+			const dbPosition = dbPositions.find(p => p.symbol === order.symbol);
+			if (dbPosition) {
+				position = {
+					id: dbPosition.id,
+					accountId: dbPosition.accountId,
+					symbol: dbPosition.symbol,
+					side: dbPosition.side,
+					quantity: dbPosition.quantity,
+					avgPrice: dbPosition.avgPrice,
+					currentPrice: dbPosition.currentPrice || dbPosition.avgPrice,
+					unrealizedPnl: dbPosition.unrealizedPnl,
+					createdAt: dbPosition.createdAt,
+					updatedAt: dbPosition.updatedAt
+				};
+				this.positions.set(positionKey, position);
+			}
+		}
+
+		if (position) {
+			// Add to existing position
+			const totalQuantity = position.quantity + order.quantity;
+			const totalCost = (position.quantity * position.avgPrice) + order.amount;
+			position.avgPrice = totalCost / totalQuantity;
+			position.quantity = totalQuantity;
+			position.currentPrice = order.executionPrice;
+			position.updatedAt = new Date().toISOString();
+		} else {
+			// Create new position
+			position = {
+				id: positionKey,
+				accountId: account.id,
+				symbol: order.symbol,
+				side: 'LONG',
+				quantity: order.quantity,
+				avgPrice: order.executionPrice,
+				currentPrice: order.executionPrice,
+				unrealizedPnl: 0,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString()
+			};
+			this.positions.set(positionKey, position);
+			console.log('Created new position:', position);
+		}
+	}
+
+	// Handle sell order execution
+	async executeSellOrder(order, account) {
+		// Add balance
+		const totalReceived = order.amount - order.commission;
+		account.balance += totalReceived;
+
+		// Update position
+		const positionKey = `${account.id}_${order.symbol}`;
+		const position = this.positions.get(positionKey);
+
+		if (position) {
+			if (order.quantity >= position.quantity) {
+				// Close position completely
+				const realizedPnL = (order.executionPrice - position.avgPrice) * position.quantity;
+				account.realizedPnL += realizedPnL;
+				account.totalTrades++;
+
+				if (realizedPnL > 0) {
+					account.winningTrades++;
+				} else {
+					account.losingTrades++;
+				}
+
+				console.log('Closing position completely:', position.id);
+				this.positions.delete(positionKey);
+				await this.deletePosition(position.id);
+			} else {
+				// Partial close
+				const realizedPnL = (order.executionPrice - position.avgPrice) * order.quantity;
+				account.realizedPnL += realizedPnL;
+				account.totalTrades++;
+
+				if (realizedPnL > 0) {
+					account.winningTrades++;
+				} else {
+					account.losingTrades++;
+				}
+
+				position.quantity -= order.quantity;
+				position.updatedAt = new Date().toISOString();
+			}
+		}
+	}
+
+	// Execute an order (refactored)
 	async executeOrder(order, account) {
 		try {
 			if (order.side === 'BUY') {
-				// Buy order - deduct balance, add position
-				const totalCost = order.amount + order.commission;
-				account.balance -= totalCost;
-
-				// Update or create position
-				const positionKey = `${account.id}_${order.symbol}`;
-				let position = this.positions.get(positionKey);
-
-				// If not in memory, try to load from database
-				if (!position) {
-					const dbPositions = this.db.getPaperTradingPositions(account.id);
-					const dbPosition = dbPositions.find(p => p.symbol === order.symbol);
-					if (dbPosition) {
-						position = {
-							id: dbPosition.id,
-							accountId: dbPosition.account_id,
-							symbol: dbPosition.symbol,
-							side: dbPosition.side,
-							quantity: dbPosition.quantity,
-							avgPrice: dbPosition.avg_price,
-							unrealizedPnL: dbPosition.unrealized_pnl,
-							createdAt: dbPosition.created_at,
-							updatedAt: dbPosition.updated_at
-						};
-						this.positions.set(positionKey, position);
-					}
-				}
-
-				if (position) {
-					// Add to existing position
-					const totalQuantity = position.quantity + order.quantity;
-					const totalCost = (position.quantity * position.avgPrice) + order.amount;
-					position.avgPrice = totalCost / totalQuantity;
-					position.quantity = totalQuantity;
-					position.updatedAt = new Date().toISOString();
-				} else {
-					// Create new position
-					position = {
-						id: positionKey,
-						accountId: account.id,
-						symbol: order.symbol,
-						side: 'LONG',
-						quantity: order.quantity,
-						avgPrice: order.executionPrice,
-						unrealizedPnL: 0,
-						createdAt: new Date().toISOString(),
-						updatedAt: new Date().toISOString()
-					};
-					this.positions.set(positionKey, position);
-					console.log('Created new position:', position);
-				}
-
+				await this.executeBuyOrder(order, account);
 			} else if (order.side === 'SELL') {
-				// Sell order - add balance, reduce/close position
-				const totalReceived = order.amount - order.commission;
-				account.balance += totalReceived;
-
-				// Update position
-				const positionKey = `${account.id}_${order.symbol}`;
-				const position = this.positions.get(positionKey);
-
-				if (position) {
-					if (order.quantity >= position.quantity) {
-						// Close position completely
-						const realizedPnL = (order.executionPrice - position.avgPrice) * position.quantity;
-						account.realizedPnL += realizedPnL;
-						account.totalTrades++;
-
-						if (realizedPnL > 0) {
-							account.winningTrades++;
-						} else {
-							account.losingTrades++;
-						}
-
-						console.log('Closing position completely:', position.id);
-						this.positions.delete(positionKey);
-						// Delete position from database
-						await this.deletePosition(position.id);
-					} else {
-						// Partial close
-						const realizedPnL = (order.executionPrice - position.avgPrice) * order.quantity;
-						account.realizedPnL += realizedPnL;
-						account.totalTrades++;
-
-						if (realizedPnL > 0) {
-							account.winningTrades++;
-						} else {
-							account.losingTrades++;
-						}
-
-						position.quantity -= order.quantity;
-						position.updatedAt = new Date().toISOString();
-					}
-				}
+				await this.executeSellOrder(order, account);
 			}
 
 			// Update account
 			account.updatedAt = new Date().toISOString();
 			await this.updateAccount(account);
+
+			// Update unrealized P&L and equity after order execution
+			await this.updateUnrealizedPnL(account.id);
 
 			// Save position to database
 			if (order.side === 'BUY') {
@@ -400,7 +539,6 @@ class PaperTradingService {
 					await this.updatePosition(position);
 				}
 			}
-
 		} catch (error) {
 			console.error('Error executing order:', error);
 			throw error;
@@ -415,61 +553,183 @@ class PaperTradingService {
 
 			let totalUnrealizedPnL = 0;
 
-			// Get all positions for this account
-			const positions = Array.from(this.positions.values())
-				.filter(pos => pos.accountId === accountId);
+			// Get all positions for this account from database
+			const dbPositions = this.db.getPaperTradingPositions(accountId);
 
-			for (const position of positions) {
-				// Get current market price
-				const marketData = await this.binance.getMarketData(position.symbol, '1m');
-				const currentPrice = marketData.current_price;
+			for (const position of dbPositions) {
+				try {
+					// Get current market price
+					const marketData = await this.binance.getMarketData(position.symbol, '1m');
+					const currentPrice = marketData.currentPrice;
 
-				// Calculate unrealized P&L
-				const unrealizedPnL = (currentPrice - position.avgPrice) * position.quantity;
-				position.unrealizedPnL = unrealizedPnL;
-				totalUnrealizedPnL += unrealizedPnL;
+					// Calculate unrealized P&L
+					const unrealizedPnL = (currentPrice - position.avgPrice) * position.quantity;
 
-				// Update position
-				position.updatedAt = new Date().toISOString();
-				await this.updatePosition(position);
+					// Update position with correct field names
+					const updatedPosition = {
+						id: position.id,
+						accountId: position.accountId,
+						symbol: position.symbol,
+						side: position.side,
+						quantity: position.quantity,
+						avgPrice: position.avgPrice,
+						unrealizedPnl: unrealizedPnL,
+						createdAt: position.createdAt,
+						updatedAt: new Date().toISOString()
+					};
+
+					// Update in database
+					this.db.updatePaperTradingPosition(updatedPosition);
+
+					totalUnrealizedPnL += unrealizedPnL;
+				} catch (error) {
+					console.warn(`Could not get market data for ${position.symbol}:`, error);
+					// Update position with zero unrealized P&L
+					const updatedPosition = {
+						id: position.id,
+						accountId: position.accountId,
+						symbol: position.symbol,
+						side: position.side,
+						quantity: position.quantity,
+						avgPrice: position.avgPrice,
+						unrealizedPnl: 0,
+						createdAt: position.createdAt,
+						updatedAt: new Date().toISOString()
+					};
+					this.db.updatePaperTradingPosition(updatedPosition);
+				}
 			}
 
 			// Update account equity
-			account.unrealizedPnL = totalUnrealizedPnL;
-			account.equity = account.balance + totalUnrealizedPnL;
-			account.updatedAt = new Date().toISOString();
+			const newEquity = account.balance + totalUnrealizedPnL;
+			await this.updateAccount(accountId, {
+				equity: newEquity,
+				unrealizedPnl: totalUnrealizedPnL,
+				updatedAt: new Date().toISOString()
+			});
 
-			await this.updateAccount(account);
-
+			console.log(`Updated unrealized P&L for account ${accountId}: $${totalUnrealizedPnL.toFixed(2)}`);
 		} catch (error) {
 			console.error('Error updating unrealized P&L:', error);
 		}
 	}
 
-	// Get account positions
-	async getPositions(accountId) {
+	// Update unrealized P&L for a position
+	async updateUnrealizedPnL(positionId, newPrice = null) {
 		try {
-			// Get positions from database
-			const dbPositions = this.db.getPaperTradingPositions(accountId);
-
-			// Update unrealized P&L for each position
-			for (const position of dbPositions) {
-				try {
-					const marketData = await this.binance.getMarketData(position.symbol, '1m');
-					const currentPrice = marketData.current_price;
-					position.unrealizedPnL = (currentPrice - position.avg_price) * position.quantity;
-					position.currentPrice = currentPrice;
-				} catch (error) {
-					console.warn(`Could not get market data for ${position.symbol}:`, error);
-					position.unrealizedPnL = 0;
-					position.currentPrice = position.avg_price;
+			// Find position by ID
+			let position = null;
+			for (const [key, pos] of this.positions.entries()) {
+				if (pos.id === positionId) {
+					position = pos;
+					break;
 				}
 			}
 
+			if (!position) {
+				throw new Error(`Position with ID ${positionId} not found`);
+			}
+
+			// Use provided price or get from market
+			let currentPrice;
+			if (newPrice !== null) {
+				currentPrice = newPrice;
+			} else {
+				const marketData = await this.binance.getMarketData(position.symbol, '1m');
+				currentPrice = marketData.currentPrice;
+			}
+
+			// Calculate unrealized P&L
+			position.unrealizedPnl = (currentPrice - position.avgPrice) * position.quantity;
+			position.currentPrice = currentPrice;
+			position.updatedAt = new Date().toISOString();
+
+			// Update in database
+			await this.db.updatePaperTradingPosition(position);
+
+			return position;
+		} catch (error) {
+			console.error('Error updating position unrealized P&L:', error);
+			throw error;
+		}
+	}
+
+	// Close a position
+	async closePosition(positionId, closePrice) {
+		try {
+			// Find position by ID
+			let position = null;
+			let positionKey = null;
+			for (const [key, pos] of this.positions.entries()) {
+				if (pos.id === positionId) {
+					position = pos;
+					positionKey = key;
+					break;
+				}
+			}
+
+			if (!position) {
+				throw new Error(`Position with ID ${positionId} not found`);
+			}
+
+			// Calculate realized P&L
+			const realizedPnl = (closePrice - position.avgPrice) * position.quantity;
+
+			// Create closing order
+			const orderData = {
+				accountId: position.accountId,
+				symbol: position.symbol,
+				side: position.side === 'LONG' ? 'SELL' : 'BUY',
+				type: 'MARKET',
+				quantity: position.quantity,
+				price: closePrice,
+				executionPrice: closePrice,
+				amount: position.quantity * closePrice,
+				commission: 0,
+				status: 'FILLED',
+				realizedPnl: realizedPnl
+			};
+
+			const order = await this.createOrder(orderData);
+
+			// Update account balance
+			const account = await this.getAccount(position.accountId);
+			if (account) {
+				const newBalance = account.balance + realizedPnl;
+				await this.updateAccount({
+					...account,
+					balance: newBalance,
+					realizedPnl: account.realizedPnl + realizedPnl,
+					totalTrades: account.totalTrades + 1,
+					winningTrades: realizedPnl > 0 ? account.winningTrades + 1 : account.winningTrades,
+					updatedAt: new Date().toISOString()
+				});
+			}
+
+			// Remove position from memory and database
+			this.positions.delete(positionKey);
+			await this.db.deletePaperTradingPosition(positionId);
+
+			return {
+				success: true,
+				position: position,
+				order: order,
+				realizedPnl: realizedPnl
+			};
+		} catch (error) {
+			console.error('Error closing position:', error);
+			throw error;
+		}
+	}
+
+	// Get positions for an account
+	getPositions(accountId) {
+		try {
+			const dbPositions = this.db.getPaperTradingPositions(accountId);
 			return dbPositions;
 		} catch (error) {
 			console.error('Error getting positions:', error);
-			throw error;
+			return [];
 		}
 	}
 
@@ -495,6 +755,57 @@ class PaperTradingService {
 		}
 	}
 
+	// Update order status
+	async updateOrderStatus(orderId, newStatus) {
+		try {
+			// Find order by ID
+			let order = null;
+			for (const [key, ord] of this.orders.entries()) {
+				if (ord.id === orderId) {
+					order = ord;
+					break;
+				}
+			}
+
+			if (!order) {
+				throw new Error(`Order with ID ${orderId} not found`);
+			}
+
+			// Update status
+			order.status = newStatus;
+			order.updatedAt = new Date().toISOString();
+
+			// Update in database
+			await this.db.updatePaperTradingOrder(order);
+
+			return order;
+		} catch (error) {
+			console.error('Error updating order status:', error);
+			throw error;
+		}
+	}
+
+	// Get all orders (for admin view)
+	async getOrders(limit = 100) {
+		try {
+			const allOrders = [];
+			const accounts = this.db.getPaperTradingAccounts();
+
+			for (const account of accounts) {
+				if (account && account.id) {
+					const orders = this.db.getPaperTradingOrders(account.id, limit);
+					allOrders.push(...orders);
+				}
+			}
+
+			// Sort by creation date descending
+			return allOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+		} catch (error) {
+			console.error('Error getting all orders:', error);
+			throw error;
+		}
+	}
+
 	// Get account performance statistics
 	async getAccountStats(accountId) {
 		try {
@@ -516,7 +827,7 @@ class PaperTradingService {
 					(account.winningTrades / account.totalTrades * 100).toFixed(2) + '%' : '0%',
 				avgProfitPerTrade: account.totalTrades > 0 ?
 					(account.realizedPnL / account.totalTrades).toFixed(2) : '0',
-				totalUnrealizedPnL: positions.reduce((sum, pos) => sum + pos.unrealizedPnL, 0).toFixed(2),
+				totalUnrealizedPnL: positions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0).toFixed(2),
 				portfolioValue: account.equity.toFixed(2)
 			};
 
@@ -527,10 +838,44 @@ class PaperTradingService {
 		}
 	}
 
+	// Calculate account equity
+	async calculateAccountEquity(accountId) {
+		try {
+			const account = await this.getAccount(accountId);
+			if (!account) return 0;
+
+			const positions = await this.getPositions(accountId);
+			const totalUnrealizedPnL = positions.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
+
+			const equity = account.balance + totalUnrealizedPnL;
+			return equity;
+		} catch (error) {
+			console.error('Error calculating account equity:', error);
+			throw error;
+		}
+	}
+
+	// Calculate total PnL (realized + unrealized)
+	async calculateTotalPnL(accountId) {
+		try {
+			const account = await this.getAccount(accountId);
+			if (!account) return 0;
+
+			const positions = await this.getPositions(accountId);
+			const totalUnrealizedPnL = positions.reduce((sum, pos) => sum + (pos.unrealizedPnl || 0), 0);
+
+			const totalPnL = (account.realizedPnl || 0) + totalUnrealizedPnL;
+			return totalPnL;
+		} catch (error) {
+			console.error('Error calculating total PnL:', error);
+			throw error;
+		}
+	}
+
 	// Database operations
 	async saveAccount(account) {
 		try {
-			this.db.createPaperTradingAccount(account);
+			return this.db.createPaperTradingAccount(account);
 		} catch (error) {
 			console.error('Error saving account:', error);
 			throw error;
@@ -588,32 +933,120 @@ class PaperTradingService {
 
 	loadPositionsFromDatabase() {
 		try {
-			console.log('Loading positions from database...');
-			const stmt = this.db.db.prepare(`
-				SELECT * FROM paper_trading_positions
-			`);
-			const allPositions = stmt.all();
+			const dbPositions = this.db.getPaperTradingPositions();
 
-			allPositions.forEach(dbPosition => {
+			for (const dbPosition of dbPositions) {
 				const position = {
 					id: dbPosition.id,
-					accountId: dbPosition.account_id,
+					accountId: dbPosition.accountId,
 					symbol: dbPosition.symbol,
 					side: dbPosition.side,
 					quantity: dbPosition.quantity,
-					avgPrice: dbPosition.avg_price,
-					unrealizedPnL: dbPosition.unrealized_pnl,
-					createdAt: dbPosition.created_at,
-					updatedAt: dbPosition.updated_at
+					avgPrice: dbPosition.avgPrice,
+					unrealizedPnl: dbPosition.unrealizedPnl,
+					createdAt: dbPosition.createdAt,
+					updatedAt: dbPosition.updatedAt
 				};
 
-				const positionKey = `${position.accountId}_${position.symbol}`;
-				this.positions.set(positionKey, position);
-			});
+				this.positions.set(position.id, position);
+			}
 
-			console.log(`Loaded ${allPositions.length} positions from database`);
+			console.log(`Loaded ${this.positions.size} positions from database`);
 		} catch (error) {
 			console.error('Error loading positions from database:', error);
+		}
+	}
+
+	// Create a position directly (for testing and manual position creation)
+	async createPosition(positionData) {
+		try {
+			const { accountId, symbol, side, quantity, avgPrice, currentPrice } = positionData;
+
+			// Validate account exists
+			const account = await this.getAccount(accountId);
+			if (!account) {
+				throw new Error('Account not found');
+			}
+
+			// Create position key
+			const positionKey = `${accountId}_${symbol}`;
+
+			// Check if position already exists
+			if (this.positions.has(positionKey)) {
+				throw new Error('Position already exists for this symbol');
+			}
+
+			// Create position
+			const position = {
+				id: positionKey,
+				accountId: accountId,
+				symbol: symbol,
+				side: side || 'LONG',
+				quantity: quantity,
+				avgPrice: avgPrice,
+				currentPrice: currentPrice || avgPrice,
+				unrealizedPnl: 0,
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString()
+			};
+
+			// Add to memory
+			this.positions.set(positionKey, position);
+
+			// Save to database
+			await this.updatePosition(position);
+
+			console.log(`Created position: ${symbol} ${side} ${quantity} @ $${avgPrice}`);
+			return position;
+		} catch (error) {
+			console.error('Error creating position:', error);
+			throw error;
+		}
+	}
+
+	// Create an order directly (for testing and manual order creation)
+	async createOrder(orderData) {
+		try {
+			const { accountId, symbol, side, type, quantity, price, executionPrice, amount, commission } = orderData;
+
+			// Validate account exists
+			const account = await this.getAccount(accountId);
+			if (!account) {
+				throw new Error('Account not found');
+			}
+
+			// Create order ID
+			const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+			// Create order
+			const order = {
+				id: orderId,
+				accountId: accountId,
+				symbol: symbol,
+				side: side,
+				type: type || 'MARKET',
+				quantity: quantity,
+				price: price,
+				executionPrice: executionPrice || price,
+				amount: amount || (quantity * (executionPrice || price)),
+				commission: commission || ((amount || (quantity * (executionPrice || price))) * this.commission),
+				status: 'FILLED',
+				createdAt: new Date().toISOString(),
+				filledAt: new Date().toISOString(),
+				isRealOrder: false
+			};
+
+			// Add to memory
+			this.orders.set(orderId, order);
+
+			// Save to database
+			await this.saveOrder(order);
+
+			console.log(`Created order: ${side} ${quantity} ${symbol} @ $${executionPrice || price}`);
+			return order;
+		} catch (error) {
+			console.error('Error creating order:', error);
+			throw error;
 		}
 	}
 }

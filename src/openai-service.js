@@ -20,7 +20,7 @@ class OpenAIService {
 
 CRYPTOCURRENCY: ${cryptocurrency}
 TIMEFRAME: ${timeframe}
-CURRENT PRICE: ${marketData.current_price || 'N/A'}
+CURRENT PRICE: ${marketData.currentPrice || 'N/A'}
 
 TECHNICAL INDICATORS:
 - RSI: ${technicalIndicators.rsi || 'N/A'}
@@ -82,11 +82,11 @@ Remember: ONLY JSON, nothing else.`;
 			const analysisId = this.db.saveAIAnalysis({
 				cryptocurrency,
 				timeframe,
-				market_data: marketData,
-				ai_response: response,
-				tokens_used: tokensUsed,
+				marketData: marketData,
+				aiResponse: response,
+				tokensUsed: tokensUsed,
 				cost: cost,
-				analysis_time_ms: analysisTime
+				analysisTimeMs: analysisTime
 			});
 
 			console.log(`AI Analysis completed for ${cryptocurrency} (${timeframe}) in ${analysisTime}ms`);
@@ -94,10 +94,10 @@ Remember: ONLY JSON, nothing else.`;
 
 			return {
 				...analysis,
-				analysis_id: analysisId,
-				tokens_used: tokensUsed,
+				analysisId: analysisId,
+				tokensUsed: tokensUsed,
 				cost: cost,
-				analysis_time_ms: analysisTime
+				analysisTimeMs: analysisTime
 			};
 
 		} catch (error) {
@@ -143,12 +143,12 @@ Remember: ONLY JSON, nothing else.`;
 			// Create signal data
 			const signalData = {
 				cryptocurrency: cryptocurrency,
-				signal_type: analysis.signal.toLowerCase(),
+				signalType: analysis.signal.toLowerCase(),
 				timeframe: timeframe,
-				price: marketData.current_price || null,
+				price: marketData.currentPrice || null,
 				confidence: analysis.confidence,
-				ai_reasoning: analysis.reasoning,
-				technical_indicators: technicalIndicators
+				aiReasoning: analysis.reasoning,
+				technicalIndicators: technicalIndicators
 			};
 
 			// Save signal to database
@@ -157,7 +157,7 @@ Remember: ONLY JSON, nothing else.`;
 			console.log(`Signal generated: ${cryptocurrency} ${analysis.signal} (${timeframe}) - Confidence: ${(analysis.confidence * 100).toFixed(1)}%`);
 
 			return {
-				signal_id: signalId,
+				signalId: signalId,
 				...signalData,
 				analysis: analysis
 			};

@@ -1,6 +1,7 @@
 # Cursor Rules for Signal Crypto Bot
 
 ## Markdown Files
+
 - Always run markdownlint on .md files before committing
 - Auto-fix markdown issues when possible
 - Ensure proper spacing around headings, lists, and code blocks
@@ -8,36 +9,179 @@
 - Use proper language specifiers for code blocks
 
 ## Code Quality
+
 - Use ESLint for JavaScript/TypeScript files
 - Use Prettier for code formatting
 - Run tests before committing
 - Follow consistent naming conventions
 
 ## File Structure
+
 - Keep project structure organized as defined in ROADMAP.md
 - Use descriptive file and folder names
 - Maintain clear separation between backend and frontend
 
 ## Documentation
+
 - Update README.md when adding new features
 - Document API endpoints
 - Keep ROADMAP.md updated with progress
 - Add inline comments for complex logic
 
 ## Security
+
 - Never commit API keys or sensitive data
 - Use environment variables for configuration
 - Validate all user inputs
 - Implement proper error handling
 
 ## Performance
+
 - Optimize API calls with caching
 - Use efficient database queries
 - Monitor resource usage in Docker containers
 - Implement rate limiting where appropriate
 
 ## Spell Checking
+
 - Always add unknown words to user's spell checker settings
 - Add technical terms, cryptocurrency names, and project-specific terminology
 - Include API names, framework names, and technical abbreviations
 - Add Bulgarian words when working with Bulgarian content
+
+## FE Components
+
+- Always add data-testid to HTML elements for easier and better testing in future
+
+## Method and Function Creation (CRITICAL)
+
+### Single Responsibility Principle
+
+- **EACH method/function should do ONE thing well**
+- If a method does multiple things, break it down into smaller methods
+- Methods should have clear, descriptive names that indicate their single purpose
+- Avoid methods longer than 50 lines - split them if they exceed this limit
+
+### Separation of Concerns
+
+- **SEPARATE validation logic** into dedicated validation methods
+- **SEPARATE data creation** into dedicated creation methods
+- **SEPARATE execution logic** into dedicated execution methods
+- **SEPARATE notification logic** into dedicated notification methods
+- **SEPARATE error handling** into dedicated error handling methods
+
+### Method Naming Conventions
+
+- Use **verb + noun** pattern: `validateOrder()`, `createPosition()`, `executeBuyOrder()`
+- Use **clear, descriptive names** that explain what the method does
+- Avoid generic names like `process()`, `handle()`, `do()` - be specific
+- Use **camelCase** for method names
+- Use **PascalCase** for class names
+
+### Method Structure
+
+- **Start with validation** - validate inputs first
+- **Handle errors early** - throw errors for invalid inputs
+- **Keep methods focused** - one method, one responsibility
+- **Return meaningful values** - return the result of the operation
+- **Use async/await** consistently for asynchronous operations
+
+### Refactoring Guidelines
+
+- **BREAK DOWN complex methods** into smaller, simpler methods
+- **EXTRACT validation logic** into separate validation methods
+- **EXTRACT creation logic** into separate creation methods
+- **EXTRACT execution logic** into separate execution methods
+- **EXTRACT notification logic** into separate notification methods
+- **CREATE simple test methods** for testing individual components
+
+### Testing Considerations
+
+- **EACH method should be easily testable** in isolation
+- **AVOID methods that require complex setup** - make them simple to test
+- **CREATE simple helper methods** for testing scenarios
+- **USE dependency injection** where possible for better testability
+- **MOCK external dependencies** in tests
+
+### Examples of Good Method Structure
+
+```javascript
+// ✅ GOOD: Single responsibility, clear naming
+async validateOrder(account, symbol, side, quantity, price) {
+    if (!account) throw new Error('Account not found');
+    if (side === 'BUY' && account.balance < totalCost) {
+        throw new Error('Insufficient balance');
+    }
+}
+
+// ✅ GOOD: Simple creation method
+async createPosition(positionData) {
+    const { accountId, symbol, side, quantity, avgPrice } = positionData;
+    const account = await this.getAccount(accountId);
+    if (!account) throw new Error('Account not found');
+    
+    const position = { /* position object */ };
+    this.positions.set(positionKey, position);
+    await this.updatePosition(position);
+    return position;
+}
+
+// ❌ BAD: Too complex, multiple responsibilities
+async placeMarketOrder(accountId, symbol, side, quantity, price) {
+    // Validation, creation, execution, notification all in one method
+    // This should be broken down into smaller methods
+}
+```
+
+### Code Quality & Linting (CRITICAL)
+
+### Immediate Lint Fixes
+
+- **ALWAYS fix lint errors IMMEDIATELY after any code changes**
+- Run `npm run lint` after every code modification
+- Fix ALL warnings and errors before proceeding
+- Never leave lint issues for later - fix them right away
+
+### Markdown Linting
+
+- **ALWAYS run markdownlint on .md files after changes**
+- Auto-fix markdown issues immediately when possible
+- Ensure proper spacing, line length, and formatting
+- Fix any markdown lint errors before committing
+
+### Spell Checking (CRITICAL)
+
+- **ALWAYS add unknown words to user's spell checker settings immediately**
+- Add technical terms, cryptocurrency names, and project-specific terminology
+- Include API names, framework names, and technical abbreviations
+- Add Bulgarian words when working with Bulgarian content
+- Never leave spelling issues - add words to spell checker right away
+
+### Cursor Rules Validation
+
+- **ALWAYS validate .cursorrules file after any changes**
+- Ensure all rules are properly formatted and up-to-date
+- Check that new rules are added to the appropriate sections
+- Verify that critical rules are marked as CRITICAL
+- Keep rules organized and easy to follow
+
+### Quality Assurance Workflow
+
+1. Make code changes
+2. Run `npm run lint` immediately (excludes node_modules)
+3. Fix ALL lint errors/warnings
+4. Run markdownlint on .md files
+5. Fix markdown issues
+6. Add unknown words to spell checker (excludes node_modules)
+7. **Validate .cursorrules file**
+8. Only then proceed with next task
+
+### Excluded Directories
+
+- **node_modules/** - Excluded from all linting and spell checking
+- **dist/** - Build output directory
+- **build/** - Build output directory
+- **coverage/** - Test coverage reports
+
+**REMEMBER: These rules are CRITICAL and must be followed EVERY TIME!**  
+  

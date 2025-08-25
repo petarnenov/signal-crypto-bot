@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useToast } from '../context/ToastContext';
+import { useToast } from './useToast';
 
 const useWebSocket = () => {
 	const ws = useRef(null);
@@ -14,12 +14,12 @@ const useWebSocket = () => {
 		const key = `${message}-${type}`;
 		const now = Date.now();
 		const lastShown = toastDebounceRef.current.get(key);
-		
+
 		// If same toast was shown in last 2 seconds, skip it
 		if (lastShown && (now - lastShown) < 2000) {
 			return;
 		}
-		
+
 		toastDebounceRef.current.set(key, now);
 		showToast(message, type, duration);
 	}, [showToast]);
@@ -75,13 +75,23 @@ const useWebSocket = () => {
 					} else if (data.type === 'validation_success') {
 						debouncedToast(data.data.message, 'success', 5000);
 					} else if (data.type === 'config_updated') {
+						// Handle real-time config updates
+						console.log('Config updated via WebSocket:', data.data);
 						debouncedToast(data.data.message, 'info', 3000);
-						window.dispatchEvent(new CustomEvent('configUpdated', { detail: data.data }));
+						window.dispatchEvent(new CustomEvent('configUpdated', {
+							detail: data.data
+						}));
 					} else if (data.type === 'data_updated') {
 						debouncedToast(data.data.message, 'info', 3000);
 						window.dispatchEvent(new CustomEvent('dataUpdated', { detail: data.data }));
 					} else if (data.type === 'connection_status') {
 						console.log('WebSocket connection status:', data.data.message);
+					} else if (data.type === 'paper_trading_order_executed' ||
+						data.type === 'paper_trading_executed') {
+						// Dispatch custom event for paper trading updates
+						window.dispatchEvent(new CustomEvent('websocket_message', {
+							detail: data
+						}));
 					}
 
 					// Handle response messages
@@ -130,7 +140,7 @@ const useWebSocket = () => {
 			console.error('Failed to create WebSocket connection:', error);
 			isConnectingRef.current = false;
 		}
-	}, [showToast]);
+	}, [debouncedToast]);
 
 	const sendMessage = useCallback((type, payload = {}) => {
 		return new Promise((resolve, reject) => {
@@ -179,13 +189,13 @@ const useWebSocket = () => {
 
 				pendingRequests.current.set(requestId, { resolve, reject });
 
-				// Timeout after 10 seconds
+				// Timeout after 30 seconds
 				setTimeout(() => {
 					if (pendingRequests.current.has(requestId)) {
 						pendingRequests.current.delete(requestId);
 						reject(new Error('Request timeout'));
 					}
-				}, 10000);
+				}, 30000);
 
 				ws.current.send(JSON.stringify(message));
 			};
@@ -198,6 +208,9 @@ const useWebSocket = () => {
 		// Connect immediately
 		connect();
 
+		// Capture the ref value at the time the effect runs
+		const currentToastDebounceRef = toastDebounceRef.current;
+
 		return () => {
 			// Clean up on unmount
 			if (reconnectTimeoutRef.current) {
@@ -206,8 +219,8 @@ const useWebSocket = () => {
 			if (ws.current && ws.current.readyState === WebSocket.OPEN) {
 				ws.current.close(1000, 'Component unmounting');
 			}
-			// Clear toast debounce cache
-			toastDebounceRef.current.clear();
+			// Clear toast debounce cache using the captured ref
+			currentToastDebounceRef.clear();
 		};
 	}, [connect]);
 

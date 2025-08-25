@@ -1,11 +1,11 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 
-const Modal = ({ 
-	isOpen, 
-	onClose, 
-	title, 
-	message, 
+const Modal = ({
+	isOpen,
+	onClose,
+	title,
+	message,
 	type = 'info',
 	showCloseButton = true,
 	onConfirm,
@@ -86,7 +86,7 @@ const Modal = ({
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center">
 			{/* Backdrop */}
-			<div 
+			<div
 				className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
 				onClick={handleBackdropClick}
 			></div>

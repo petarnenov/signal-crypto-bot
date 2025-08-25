@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import useWebSocket from '../hooks/useWebSocket';
 
-function SignalChart() {
+function SignalChart({ 'data-testid': testId = 'signal-chart' }) {
 	const [data, setData] = useState([]);
 	const [isLoading, setIsLoading] = useState(true);
-	const { sendMessage, ws } = useWebSocket();
+	const { sendMessage } = useWebSocket();
 
 	const fetchChartData = useCallback(async () => {
 		if (!sendMessage) {
@@ -43,56 +43,58 @@ function SignalChart() {
 
 	if (isLoading) {
 		return (
-			<div className="flex items-center justify-center h-[300px]">
-				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+			<div data-testid={`${testId}-loading`} className="flex items-center justify-center h-[300px]">
+				<div data-testid={`${testId}-loading-spinner`} className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
 			</div>
 		);
 	}
 
 	if (data.length === 0) {
 		return (
-			<div className="flex items-center justify-center h-[300px] text-gray-500">
-				No signal data available
+			<div data-testid={`${testId}-empty`} className="flex items-center justify-center h-[300px] text-gray-500">
+				<p data-testid={`${testId}-empty-message`}>No signal data available</p>
 			</div>
 		);
 	}
 
 	return (
-		<ResponsiveContainer width="100%" height={300}>
-			<LineChart data={data}>
-				<CartesianGrid strokeDasharray="3 3" />
-				<XAxis
-					dataKey="date"
-					tickFormatter={(value) => new Date(value).toLocaleDateString()}
-				/>
-				<YAxis />
-				<Tooltip
-					labelFormatter={(value) => new Date(value).toLocaleDateString()}
-					formatter={(value, name) => [value, name === 'profitable' ? 'Profitable' : name === 'losing' ? 'Losing' : 'Total']}
-				/>
-				<Line
-					type="monotone"
-					dataKey="signals"
-					stroke="#3b82f6"
-					strokeWidth={2}
-					name="Total Signals"
-				/>
-				<Line
-					type="monotone"
-					dataKey="profitable"
-					stroke="#22c55e"
-					strokeWidth={2}
-					name="Profitable"
-				/>
-				<Line
-					type="monotone"
-					dataKey="losing"
-					stroke="#ef4444"
-					strokeWidth={2}
-					name="Losing"
-				/>
-			</LineChart>
-		</ResponsiveContainer>
+		<div data-testid={testId}>
+			<ResponsiveContainer width="100%" height={300}>
+				<LineChart data={data}>
+					<CartesianGrid strokeDasharray="3 3" />
+					<XAxis
+						dataKey="date"
+						tickFormatter={(value) => new Date(value).toLocaleDateString()}
+					/>
+					<YAxis />
+					<Tooltip
+						labelFormatter={(value) => new Date(value).toLocaleDateString()}
+						formatter={(value, name) => [value, name === 'profitable' ? 'Profitable' : name === 'losing' ? 'Losing' : 'Total']}
+					/>
+					<Line
+						type="monotone"
+						dataKey="signals"
+						stroke="#3b82f6"
+						strokeWidth={2}
+						name="Total Signals"
+					/>
+					<Line
+						type="monotone"
+						dataKey="profitable"
+						stroke="#22c55e"
+						strokeWidth={2}
+						name="Profitable"
+					/>
+					<Line
+						type="monotone"
+						dataKey="losing"
+						stroke="#ef4444"
+						strokeWidth={2}
+						name="Losing"
+					/>
+				</LineChart>
+			</ResponsiveContainer>
+		</div>
 	);
 }
 
