@@ -273,13 +273,22 @@ class CryptoBotServer {
 					break;
 
 				case 'get_signals':
-					const { limit = 50, offset = 0 } = payload || {};
-					const signals = this.db.getSignals(limit, offset);
-					ws.send(JSON.stringify({
-						type: 'signals_response',
-						data: signals,
-						requestId
-					}));
+					try {
+						const { limit = 50 } = payload || {};
+						const signals = this.db.getSignals(limit);
+						ws.send(JSON.stringify({
+							type: 'signals_response',
+							data: signals,
+							requestId
+						}));
+					} catch (error) {
+						console.error('Error getting signals:', error);
+						ws.send(JSON.stringify({
+							type: 'signals_response',
+							data: [],
+							requestId
+						}));
+					}
 					break;
 
 				case 'generate_signal':
@@ -304,12 +313,32 @@ class CryptoBotServer {
 					break;
 
 				case 'get_stats':
-					const stats = this.signalGenerator.getSignalStats();
-					ws.send(JSON.stringify({
-						type: 'stats_response',
-						data: stats,
-						requestId
-					}));
+					try {
+						if (!this.signalGenerator) {
+							throw new Error('Signal generator not initialized');
+						}
+						const stats = this.signalGenerator.getSignalStats();
+						ws.send(JSON.stringify({
+							type: 'stats_response',
+							data: stats,
+							requestId
+						}));
+					} catch (error) {
+						console.error('Error getting stats:', error);
+						ws.send(JSON.stringify({
+							type: 'stats_response',
+							data: {
+								total_signals: 0,
+								avg_profit_loss: 0,
+								profitable_signals: 0,
+								losing_signals: 0,
+								recent_signals: [],
+								cache_stats: {},
+								is_running: false
+							},
+							requestId
+						}));
+					}
 					break;
 
 				case 'get_analytics':
@@ -566,7 +595,21 @@ class CryptoBotServer {
 			signalTypes[signal.signalType] = (signalTypes[signal.signalType] || 0) + 1;
 
 			// Monthly performance
-			const month = new Date(signal.created_at).toLocaleString('en-US', { month: 'short' }); // Use created_at instead of createdAt
+			let month;
+			try {
+				if (!signal.createdAt) {
+					month = 'Unknown';
+				} else {
+					const signalDate = new Date(signal.createdAt);
+					if (isNaN(signalDate.getTime())) {
+						month = 'Unknown';
+					} else {
+						month = signalDate.toLocaleString('en-US', { month: 'short' });
+					}
+				}
+			} catch (error) {
+				month = 'Unknown';
+			}
 			if (!monthlyData[month]) {
 				monthlyData[month] = { profitLoss: 0, count: 0 };
 			}
@@ -634,7 +677,24 @@ class CryptoBotServer {
 		const dailyData = {};
 
 		signals.forEach(signal => {
-			const date = new Date(signal.created_at).toISOString().split('T')[0]; // Use created_at instead of createdAt
+			// Handle invalid dates safely
+			let date;
+			try {
+				// Check if createdAt exists and is not null/undefined
+				if (!signal.createdAt) {
+					return;
+				}
+
+				const signalDate = new Date(signal.createdAt);
+				if (isNaN(signalDate.getTime())) {
+					// Invalid date, skip this signal
+					return;
+				}
+				date = signalDate.toISOString().split('T')[0];
+			} catch (error) {
+				// Invalid date, skip this signal
+				return;
+			}
 
 			if (!dailyData[date]) {
 				dailyData[date] = {
@@ -718,19 +778,24 @@ class CryptoBotServer {
 	}
 }
 
+// Start server only if not in test environment
+let server;
+if (process.env.NODE_ENV !== 'test') {
+	server = new CryptoBotServer();
+	server.start();
+}
+
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
-	server.shutdown();
+	if (server) {
+		server.shutdown();
+	}
 });
 
 process.on('SIGINT', () => {
-	server.shutdown();
+	if (server) {
+		server.shutdown();
+	}
 });
-
-// Start server only if not in test environment
-if (process.env.NODE_ENV !== 'test') {
-	const server = new CryptoBotServer();
-	server.start();
-}
 
 module.exports = CryptoBotServer;

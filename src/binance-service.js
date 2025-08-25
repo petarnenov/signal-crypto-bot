@@ -107,7 +107,9 @@ class BinanceService {
 	async getCurrentPriceFromPublicAPI(symbol) {
 		try {
 			console.log(`Using fallback API for ${symbol}`);
+
 			const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
@@ -181,6 +183,7 @@ class BinanceService {
 	async get24hrTicker(symbol) {
 		try {
 			const ticker = await this.client.dailyStats({ symbol: symbol });
+
 			return {
 				symbol: ticker.symbol,
 				priceChange: parseFloat(ticker.priceChange),
@@ -341,7 +344,19 @@ class BinanceService {
 			};
 		} catch (error) {
 			console.error(`Error getting market data for ${symbol}:`, error);
-			throw error;
+
+			// Return fallback data instead of throwing
+			return {
+				symbol: symbol,
+				timeframe: timeframe,
+				currentPrice: 0,
+				ohlcv: [],
+				ticker_24hr: {},
+				technical_indicators: {},
+				full_indicators: {},
+				timestamp: Date.now(),
+				error: error.message
+			};
 		}
 	}
 

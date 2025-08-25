@@ -226,7 +226,7 @@ class SignalGenerator {
 			console.log(`Fetching market data for ${cryptocurrency}...`);
 			const marketData = await this.binance.getMarketData(cryptocurrency, timeframe);
 			console.log(`Market data received for ${cryptocurrency}:`, {
-				current_price: marketData.current_price,
+				current_price: marketData.currentPrice,
 				has_ohlcv: !!marketData.ohlcv,
 				has_indicators: !!marketData.technical_indicators
 			});
@@ -301,7 +301,7 @@ class SignalGenerator {
 		const marketDataForAI = {
 			symbol: marketData.symbol,
 			timeframe: marketData.timeframe,
-			currentPrice: technical_indicators.current_price,
+			currentPrice: marketData.currentPrice,
 			ohlcv: ohlcv,
 			indicators: technical_indicators
 		};
@@ -374,7 +374,7 @@ class SignalGenerator {
 			console.log(`Fetching market data for ${cryptocurrency}...`);
 			const marketData = await this.binance.getMarketData(cryptocurrency, timeframe);
 			console.log(`Market data received for ${cryptocurrency}:`, {
-				current_price: marketData.current_price,
+				current_price: marketData.currentPrice,
 				has_ohlcv: !!marketData.ohlcv,
 				has_indicators: !!marketData.technical_indicators
 			});
