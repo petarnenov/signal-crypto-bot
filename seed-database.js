@@ -1,9 +1,10 @@
 const CryptoBotDatabase = require('./database/db.js');
+const { v4: uuidv4 } = require('uuid');
 
 async function seedDatabase() {
 	console.log('🌱 Starting database seeding...');
 
-	const db = new CryptoBotDatabase();
+	const db = new CryptoBotDatabase('crypto_bot.db');
 
 	try {
 		// Database is auto-initialized in constructor
@@ -21,7 +22,7 @@ async function seedDatabase() {
 		console.log('👤 Creating 2 new paper trading accounts...');
 
 		const account1 = {
-			id: `paper_user1_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+			id: `paper_user1_${uuidv4()}`,
 			userId: 'user1',
 			balance: 10000,
 			equity: 10000,
@@ -29,18 +30,18 @@ async function seedDatabase() {
 		};
 
 		const account2 = {
-			id: `paper_user2_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+			id: `paper_user2_${uuidv4()}`,
 			userId: 'user2',
-			balance: 5000,
-			equity: 5000,
+			balance: 10000,
+			equity: 10000,
 			createdAt: new Date().toISOString()
 		};
 
 		await db.createPaperTradingAccount(account1);
 		await db.createPaperTradingAccount(account2);
 
-		console.log('✅ Created account 1:', account1.accountId, 'with balance $', account1.balance);
-		console.log('✅ Created account 2:', account2.accountId, 'with balance $', account2.balance);
+		console.log('✅ Created account 1:', account1.id, 'with balance $', account1.balance);
+		console.log('✅ Created account 2:', account2.id, 'with balance $', account2.balance);
 
 		// Verify accounts were created
 		const accounts = await db.getPaperTradingAccounts();

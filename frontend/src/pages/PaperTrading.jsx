@@ -27,7 +27,7 @@ function PaperTrading() {
 	});
 
 	// Track processed order IDs to prevent duplicates
-	const [processedOrderIds] = useState(new Set());
+	const [processedOrderIds, setProcessedOrderIds] = useState(new Set());
 
 	// Separate state for orders count to ensure it updates
 	// const [ordersCount, setOrdersCount] = useState(0);
@@ -63,11 +63,14 @@ function PaperTrading() {
 			const ordersResponse = await sendMessage('get_paper_trading_orders', { limit: 20 });
 			if (Array.isArray(ordersResponse)) {
 				setOrders(ordersResponse);
-				// setOrdersCount(ordersResponse.length);
 			} else if (ordersResponse?.data) {
 				setOrders(ordersResponse.data);
-				// setOrdersCount(ordersResponse.data.length);
 			}
+
+			// Initialize processed order IDs with existing orders to prevent duplicates
+			const ordersData = Array.isArray(ordersResponse) ? ordersResponse : (ordersResponse?.data || []);
+			const existingOrderIds = ordersData.map(order => order.id);
+			setProcessedOrderIds(prev => new Set([...prev, ...existingOrderIds]));
 
 			console.log('✅ Paper trading data fetched successfully');
 		} catch (error) {
@@ -130,7 +133,7 @@ function PaperTrading() {
 						}
 
 						// Mark this order as processed
-						processedOrderIds.add(orderId);
+						setProcessedOrderIds(prev => new Set([...prev, orderId]));
 
 						// Add new order to the orders list
 						const newOrder = {
@@ -144,16 +147,27 @@ function PaperTrading() {
 							amount: message.data.amount,
 							commission: message.data.commission,
 							status: 'FILLED',
-							created_at: message.data.timestamp, // Use 'created_at' to match database
+							created_at: message.data.timestamp, // Use the timestamp from the message
 							createdAt: message.data.timestamp,
 							filledAt: message.data.timestamp,
 							isRealOrder: message.data.isRealOrder
 						};
 
+						console.log('🆕 New order created with timestamp:', message.data.timestamp);
+
 						console.log('➕ Adding new order:', orderId);
 						setOrders(prevOrders => {
-							const newOrders = [newOrder, ...prevOrders]; // Allow unlimited growth
-							return newOrders;
+							// Check if order already exists to prevent duplicates
+							const orderExists = prevOrders.some(order => order.id === orderId);
+							if (orderExists) {
+								console.log('🔄 Order already exists in list, skipping:', orderId);
+								return prevOrders;
+							}
+
+							// Add new order at the beginning - it will be sorted correctly by filteredOrders
+							const newOrders = [newOrder, ...prevOrders];
+							// Keep only the latest 50 orders to prevent memory issues
+							return newOrders.slice(0, 50);
 						});
 					}
 
@@ -227,10 +241,16 @@ function PaperTrading() {
 		return positions.filter(position => position.accountId === selectedAccount);
 	}, [positions, selectedAccount]);
 
-	// Filter orders by selected account
+	// Filter orders by selected account and sort by date (newest first)
 	const filteredOrders = useMemo(() => {
 		if (!orders.length || !selectedAccount) return [];
-		return orders.filter(order => order.accountId === selectedAccount);
+		return orders
+			.filter(order => order.accountId === selectedAccount)
+			.sort((a, b) => {
+				const dateA = new Date(a.createdAt || a.created_at || 0);
+				const dateB = new Date(b.createdAt || b.created_at || 0);
+				return dateB - dateA; // Sort by date descending (newest first)
+			});
 	}, [orders, selectedAccount]);
 
 	// Update orders count whenever orders array changes

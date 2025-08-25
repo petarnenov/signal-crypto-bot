@@ -1,5 +1,6 @@
 const CryptoBotDatabase = require('../database/db');
 const BinanceService = require('./binance-service');
+const { v4: uuidv4 } = require('uuid');
 const OpenAIService = require('./openai-service');
 
 class PaperTradingService {
@@ -47,7 +48,7 @@ class PaperTradingService {
 	// Create a test account (internal method to avoid recursion)
 	async createTestAccount(userId, initialBalance = 10000, currency = 'USDT') {
 		try {
-			const accountId = `paper_${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+			const accountId = `paper_${userId}_${uuidv4()}`;
 			const account = {
 				id: accountId,
 				userId: userId,
@@ -199,7 +200,7 @@ class PaperTradingService {
 			const simulatedCommission = simulatedAmount * this.commission;
 
 			const simulatedOrder = {
-				orderId: `sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+				orderId: `sim_${uuidv4()}`,
 				symbol: symbol,
 				side: side,
 				quantity: quantity,
@@ -220,7 +221,13 @@ class PaperTradingService {
 
 	// Create local order record
 	createLocalOrder(binanceOrder, accountId, symbol, side, quantity, price, isRealOrder) {
-		const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+		const orderId = `order_${uuidv4()}`;
+
+		// Check if order with this ID already exists
+		if (this.orders.has(orderId)) {
+			throw new Error(`Order with ID ${orderId} already exists`);
+		}
+
 		return {
 			id: orderId,
 			binanceOrderId: binanceOrder.orderId,
@@ -258,7 +265,7 @@ class PaperTradingService {
 					amount: binanceOrder.amount,
 					commission: binanceOrder.commission,
 					isRealOrder: isRealOrder,
-					timestamp: new Date().toISOString(),
+					timestamp: new Date().toISOString(), // Use current time to ensure it's the newest
 					message: `📊 Paper Trading: ${order.side} ${order.quantity} ${order.symbol} executed @ $${binanceOrder.executionPrice} (${orderType})`
 				}
 			});
@@ -358,7 +365,7 @@ class PaperTradingService {
 			}
 
 			// Create pending order
-			const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+			const orderId = `order_${uuidv4()}`;
 			const order = {
 				id: orderId,
 				accountId: accountId,
@@ -454,8 +461,9 @@ class PaperTradingService {
 			position.updatedAt = new Date().toISOString();
 		} else {
 			// Create new position
+			const positionId = `position_${uuidv4()}`;
 			position = {
-				id: positionKey,
+				id: positionId,
 				accountId: account.id,
 				symbol: order.symbol,
 				side: 'LONG',
@@ -467,7 +475,14 @@ class PaperTradingService {
 				updatedAt: new Date().toISOString()
 			};
 			this.positions.set(positionKey, position);
-			console.log('Created new position:', position);
+
+			// Save position to database immediately
+			try {
+				await this.updatePosition(position);
+				console.log('Created new position and saved to database:', position);
+			} catch (error) {
+				console.error('Error saving position to database:', error);
+			}
 		}
 	}
 
@@ -528,10 +543,7 @@ class PaperTradingService {
 			account.updatedAt = new Date().toISOString();
 			await this.updateAccount(account);
 
-			// Update unrealized P&L and equity after order execution
-			await this.updateUnrealizedPnL(account.id);
-
-			// Save position to database
+			// Save position to database first
 			if (order.side === 'BUY') {
 				const positionKey = `${account.id}_${order.symbol}`;
 				const position = this.positions.get(positionKey);
@@ -539,14 +551,17 @@ class PaperTradingService {
 					await this.updatePosition(position);
 				}
 			}
+
+			// Update unrealized P&L and equity after position is saved
+			await this.updateAccountUnrealizedPnL(account.id);
 		} catch (error) {
 			console.error('Error executing order:', error);
 			throw error;
 		}
 	}
 
-	// Update unrealized P&L for all positions
-	async updateUnrealizedPnL(accountId) {
+	// Update unrealized P&L for all positions of an account
+	async updateAccountUnrealizedPnL(accountId) {
 		try {
 			const account = await this.getAccount(accountId);
 			if (!account) return;
@@ -581,6 +596,14 @@ class PaperTradingService {
 					// Update in database
 					this.db.updatePaperTradingPosition(updatedPosition);
 
+					// Also update in memory for consistency
+					const positionKey = `${position.accountId}_${position.symbol}`;
+					const memoryPosition = this.positions.get(positionKey);
+					if (memoryPosition) {
+						memoryPosition.unrealizedPnl = unrealizedPnL;
+						memoryPosition.updatedAt = new Date().toISOString();
+					}
+
 					totalUnrealizedPnL += unrealizedPnL;
 				} catch (error) {
 					console.warn(`Could not get market data for ${position.symbol}:`, error);
@@ -597,32 +620,46 @@ class PaperTradingService {
 						updatedAt: new Date().toISOString()
 					};
 					this.db.updatePaperTradingPosition(updatedPosition);
+
+					// Also update in memory for consistency
+					const positionKey = `${position.accountId}_${position.symbol}`;
+					const memoryPosition = this.positions.get(positionKey);
+					if (memoryPosition) {
+						memoryPosition.unrealizedPnl = 0;
+						memoryPosition.updatedAt = new Date().toISOString();
+					}
 				}
 			}
 
 			// Update account equity
-			const newEquity = account.balance + totalUnrealizedPnL;
-			await this.updateAccount(accountId, {
-				equity: newEquity,
-				unrealizedPnl: totalUnrealizedPnL,
-				updatedAt: new Date().toISOString()
-			});
+			account.equity = account.balance + totalUnrealizedPnL;
+			account.unrealizedPnl = totalUnrealizedPnL;
+			await this.updateAccount(account);
 
 			console.log(`Updated unrealized P&L for account ${accountId}: $${totalUnrealizedPnL.toFixed(2)}`);
+
 		} catch (error) {
-			console.error('Error updating unrealized P&L:', error);
+			console.error('Error updating position unrealized P&L:', error);
+			throw error;
 		}
 	}
 
 	// Update unrealized P&L for a position
 	async updateUnrealizedPnL(positionId, newPrice = null) {
 		try {
-			// Find position by ID
+			// Find position by ID - try both positionKey and actual ID
 			let position = null;
-			for (const [key, pos] of this.positions.entries()) {
-				if (pos.id === positionId) {
-					position = pos;
-					break;
+
+			// First try to find by positionKey (accountId_symbol)
+			position = this.positions.get(positionId);
+
+			// If not found, try to find by actual ID
+			if (!position) {
+				for (const [key, pos] of this.positions.entries()) {
+					if (pos.id === positionId) {
+						position = pos;
+						break;
+					}
 				}
 			}
 
@@ -893,7 +930,36 @@ class PaperTradingService {
 
 	async saveOrder(order) {
 		try {
-			this.db.createPaperTradingOrder(order);
+			console.log('Saving order to database:', order);
+
+			// Check if order already exists in database
+			const existingOrder = this.db.getPaperTradingOrder(order.id);
+			if (existingOrder) {
+				throw new Error(`Order with ID ${order.id} already exists in database`);
+			}
+
+			// Ensure all required fields are present and have correct types
+			const orderData = {
+				id: order.id,
+				accountId: order.accountId,
+				symbol: order.symbol,
+				side: order.side,
+				type: order.type,
+				quantity: parseFloat(order.quantity),
+				price: parseFloat(order.price || 0),
+				executionPrice: parseFloat(order.executionPrice || order.price || 0),
+				amount: parseFloat(order.amount || 0),
+				commission: parseFloat(order.commission || 0),
+				status: order.status,
+				isRealOrder: order.isRealOrder ? 1 : 0,
+				binanceOrderId: order.binanceOrderId || null,
+				createdAt: order.createdAt || new Date().toISOString(),
+				filledAt: order.filledAt || null
+			};
+
+			console.log('Processed order data:', orderData);
+			this.db.createPaperTradingOrder(orderData);
+			console.log('Order saved successfully');
 		} catch (error) {
 			console.error('Error saving order:', error);
 			throw error;
@@ -912,7 +978,23 @@ class PaperTradingService {
 	async updatePosition(position) {
 		try {
 			console.log('Saving position to database:', position);
-			this.db.updatePaperTradingPosition(position);
+
+			// Ensure all required fields are present and have correct types
+			const positionData = {
+				id: position.id,
+				accountId: position.accountId,
+				symbol: position.symbol,
+				side: position.side,
+				quantity: parseFloat(position.quantity),
+				avgPrice: parseFloat(position.avgPrice),
+				currentPrice: parseFloat(position.currentPrice || position.avgPrice),
+				unrealizedPnl: parseFloat(position.unrealizedPnl || 0),
+				createdAt: position.createdAt || new Date().toISOString(),
+				updatedAt: position.updatedAt || new Date().toISOString()
+			};
+
+			console.log('Processed position data:', positionData);
+			this.db.updatePaperTradingPosition(positionData);
 			console.log('Position saved successfully');
 		} catch (error) {
 			console.error('Error updating position:', error);
@@ -948,7 +1030,9 @@ class PaperTradingService {
 					updatedAt: dbPosition.updatedAt
 				};
 
-				this.positions.set(position.id, position);
+				// Use positionKey as the key for consistency
+				const positionKey = `${position.accountId}_${position.symbol}`;
+				this.positions.set(positionKey, position);
 			}
 
 			console.log(`Loaded ${this.positions.size} positions from database`);
@@ -978,7 +1062,7 @@ class PaperTradingService {
 
 			// Create position
 			const position = {
-				id: positionKey,
+				id: `position_${uuidv4()}`,
 				accountId: accountId,
 				symbol: symbol,
 				side: side || 'LONG',
@@ -1016,7 +1100,12 @@ class PaperTradingService {
 			}
 
 			// Create order ID
-			const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+			const orderId = `order_${uuidv4()}`;
+
+			// Check if order with this ID already exists
+			if (this.orders.has(orderId)) {
+				throw new Error(`Order with ID ${orderId} already exists`);
+			}
 
 			// Create order
 			const order = {

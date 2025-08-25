@@ -427,7 +427,15 @@ class CryptoBotDatabase {
 			ORDER BY createdAt DESC 
 			LIMIT ?
 		`);
-		return stmt.all(accountId, limit);
+		return stmt.all(accountId, parseInt(limit) || 100);
+	}
+
+	getPaperTradingOrder(orderId) {
+		const stmt = this.db.prepare(`
+			SELECT * FROM paper_trading_orders 
+			WHERE id = ?
+		`);
+		return stmt.get(orderId);
 	}
 
 	updatePaperTradingPosition(positionData) {
