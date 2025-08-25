@@ -83,17 +83,25 @@ function Signals() {
 	}, [sendMessage, signals]);
 
 	useEffect(() => {
-		// Listen for data updates from WebSocket
+		// Listen for data updates and signal generation from WebSocket
 		const handleDataUpdate = () => {
 			refreshSignals();
 		};
 
+		const handleSignalGenerated = () => {
+			console.log('🔄 Signals page: signalGenerated event received, refreshing data...');
+			refreshSignals();
+			loadMarketData(); // Also refresh market data when new signal is generated
+		};
+
 		window.addEventListener('dataUpdated', handleDataUpdate);
+		window.addEventListener('signalGenerated', handleSignalGenerated);
 
 		return () => {
 			window.removeEventListener('dataUpdated', handleDataUpdate);
+			window.removeEventListener('signalGenerated', handleSignalGenerated);
 		};
-	}, [refreshSignals]);
+	}, [refreshSignals, loadMarketData]);
 
 	// Load market data when component mounts and when sendMessage is available
 	useEffect(() => {
@@ -205,9 +213,9 @@ function Signals() {
 													{signal.symbol}
 												</div>
 												<span data-testid={`recent-signal-type-${signal.symbol}`} className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${signal.expectedSignal === 'buy' ? 'bg-green-100 text-green-800' :
-														signal.expectedSignal === 'sell' ? 'bg-red-100 text-red-800' :
-															signal.expectedSignal === 'hold' ? 'bg-yellow-100 text-yellow-800' :
-																'bg-gray-100 text-gray-800'
+													signal.expectedSignal === 'sell' ? 'bg-red-100 text-red-800' :
+														signal.expectedSignal === 'hold' ? 'bg-yellow-100 text-yellow-800' :
+															'bg-gray-100 text-gray-800'
 													}`}>
 													{signal.expectedSignal === 'buy' && <TrendingUp className="w-3 h-3 mr-1" />}
 													{signal.expectedSignal === 'sell' && <TrendingDown className="w-3 h-3 mr-1" />}

@@ -17,8 +17,8 @@ class SignalGenerator {
 		this.telegramBot = options.telegramToken ? new CryptoSignalBot(options.telegramToken, options.telegram) : null;
 		this.db = options.db || new CryptoBotDatabase();
 
-		// Initialize Paper Trading Service with sandbox Binance
-		this.paperTradingService = new PaperTradingService({
+		// Use existing Paper Trading Service if provided, otherwise create new one
+		this.paperTradingService = options.paperTradingService || new PaperTradingService({
 			db: this.db,
 			binance: binanceOptions,
 			openai: options.openai
@@ -476,21 +476,21 @@ class SignalGenerator {
 	// Get signal statistics
 	getSignalStats() {
 		try {
-			const allSignals = this.db.getSignals(1000); // Get all signals for stats
-			const recentSignals = this.db.getSignals(10);
+			// Get only recent signals for faster response
+			const recentSignals = this.db.getSignals(100);
 
-			// Calculate stats from signals table
-			const totalSignals = allSignals.length;
-			const buySignals = allSignals.filter(s => s.signalType === 'buy').length;
-			const sellSignals = allSignals.filter(s => s.signalType === 'sell').length;
-			const holdSignals = allSignals.filter(s => s.signalType === 'hold').length;
+			// Calculate stats from recent signals
+			const totalSignals = recentSignals.length;
+			const buySignals = recentSignals.filter(s => s.signalType === 'buy').length;
+			const sellSignals = recentSignals.filter(s => s.signalType === 'sell').length;
+			const holdSignals = recentSignals.filter(s => s.signalType === 'hold').length;
 
 			return {
 				total_signals: totalSignals,
 				avg_profit_loss: 0, // Will be calculated when performance metrics are available
 				profitable_signals: buySignals, // For now, count buy signals as potentially profitable
 				losing_signals: sellSignals, // For now, count sell signals as potentially losing
-				recent_signals: recentSignals,
+				recent_signals: recentSignals.slice(0, 10), // Only return last 10 signals
 				cache_stats: this.binance.getCacheStats(),
 				is_running: this.isRunning
 			};

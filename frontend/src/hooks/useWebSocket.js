@@ -68,6 +68,7 @@ const useWebSocket = () => {
 					} else if (data.type === 'ai_error') {
 						debouncedToast(data.data.message, 'error', 5000);
 					} else if (data.type === 'signal_generated' || data.type === 'signal_generated_response') {
+						console.log('🔄 useWebSocket: signal_generated message received:', data);
 						debouncedToast(data.data.message, 'success', 5000);
 						window.dispatchEvent(new CustomEvent('signalGenerated', { detail: data.data }));
 					} else if (data.type === 'validation_warning') {
@@ -189,13 +190,8 @@ const useWebSocket = () => {
 
 				pendingRequests.current.set(requestId, { resolve, reject });
 
-				// Timeout after 30 seconds
-				setTimeout(() => {
-					if (pendingRequests.current.has(requestId)) {
-						pendingRequests.current.delete(requestId);
-						reject(new Error('Request timeout'));
-					}
-				}, 30000);
+				// No timeout needed for WebSocket communication
+				// Messages are processed asynchronously when they arrive
 
 				ws.current.send(JSON.stringify(message));
 			};

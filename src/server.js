@@ -78,7 +78,7 @@ class CryptoBotServer {
 		try {
 			// Database is auto-initialized on creation
 
-			// Initialize signal generator
+			// Initialize signal generator with existing database and paper trading service instances
 			this.signalGenerator = new SignalGenerator({
 				telegramToken: process.env.TELEGRAM_BOT_TOKEN,
 				binance: {
@@ -87,11 +87,23 @@ class CryptoBotServer {
 				},
 				openai: {
 					apiKey: process.env.OPENAI_API_KEY
-				}
+				},
+				db: this.db, // Pass the existing database instance
+				paperTradingService: this.paperTradingService // Pass the existing paper trading service instance
 			});
 
 			// Initialize paper trading service
-			this.paperTradingService = new PaperTradingService({ db: this.db });
+			this.paperTradingService = new PaperTradingService({
+				db: this.db,
+				binance: {
+					apiKey: process.env.BINANCE_API_KEY,
+					apiSecret: process.env.BINANCE_API_SECRET,
+					useSandbox: true
+				},
+				openai: {
+					apiKey: process.env.OPENAI_API_KEY
+				}
+			});
 
 			// Initialize Telegram bot (temporarily disabled for testing)
 			console.log('Telegram bot temporarily disabled for testing');

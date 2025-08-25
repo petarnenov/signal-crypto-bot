@@ -128,7 +128,7 @@ export function SignalProvider({ children, modalFunctions }) {
 	// Listen for new signals from WebSocket
 	useEffect(() => {
 		const handleSignalGenerated = (event) => {
-			console.log('New signal received via WebSocket:', event.detail);
+			console.log('🔄 SignalContext: New signal received via WebSocket:', event.detail);
 			// Refresh signals to get the latest data
 			refreshSignals();
 		};

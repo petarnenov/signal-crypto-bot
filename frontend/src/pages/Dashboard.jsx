@@ -18,6 +18,7 @@ function Dashboard() {
 	const [recentSignals, setRecentSignals] = useState([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [lastUpdate, setLastUpdate] = useState(0);
+	const [retryCount, setRetryCount] = useState(0);
 	const { sendMessage } = useWebSocket();
 
 	useEffect(() => {
@@ -44,12 +45,20 @@ function Dashboard() {
 				setLastUpdate(Date.now());
 			} catch (error) {
 				console.error('Error fetching dashboard data:', error);
-				// Retry after 2 seconds if failed
-				setTimeout(() => {
-					if (sendMessage) {
-						fetchDashboardData();
-					}
-				}, 2000);
+				// Retry after 2 seconds if failed, but limit retries
+				if (retryCount < 3) {
+					setRetryCount(prev => prev + 1);
+					setTimeout(() => {
+						if (sendMessage) {
+							fetchDashboardData();
+						}
+					}, 2000);
+				} else {
+					// Stop retrying and show error state
+					console.error('Max retries reached for dashboard data');
+					setIsLoading(false);
+					setRetryCount(0); // Reset for next attempt
+				}
 			}
 		};
 
