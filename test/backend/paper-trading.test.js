@@ -19,6 +19,7 @@ describe('PaperTradingService', () => {
 			deletePaperTradingPosition: vi.fn(),
 			createPaperTradingOrder: vi.fn(),
 			getPaperTradingOrders: vi.fn(),
+			getPaperTradingOrder: vi.fn(),
 			updatePaperTradingOrder: vi.fn(),
 			getPaperTradingAccounts: vi.fn()
 		};
