@@ -6,8 +6,8 @@ export default defineConfig({
 		globals: true,
 		environment: 'node',
 		setupFiles: ['./test/setup.js'],
-		include: ['test/backend/**/*.test.js'],
-		exclude: ['test/integration/**/*.test.js', 'test/integration/**/*.test.jsx'],
+		include: ['test/backend/**/*.test.js', 'test/integration/**/*.test.js'],
+		exclude: [],
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json', 'html'],

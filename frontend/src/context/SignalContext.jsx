@@ -77,7 +77,7 @@ export function SignalProvider({ children, modalFunctions }) {
 		}
 	};
 
-	const refreshSignals = async () => {
+	const refreshSignals = useCallback(async () => {
 		setIsLoading(true);
 		const startTime = Date.now();
 		try {
@@ -91,7 +91,7 @@ export function SignalProvider({ children, modalFunctions }) {
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, [fetchSignals]);
 
 	useEffect(() => {
 		// Try to fetch data when sendMessage is available

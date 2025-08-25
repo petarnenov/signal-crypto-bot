@@ -163,11 +163,19 @@ Remember: ONLY JSON, nothing else.`;
 
 			console.log(`Signal generated: ${cryptocurrency} ${analysis.signal} (${timeframe}) - Confidence: ${(analysis.confidence * 100).toFixed(1)}%`);
 
-			return {
+			// Create signal object with ID
+			const signal = {
 				signalId: signalId,
 				...signalData,
 				analysis: analysis
 			};
+
+			// Broadcast signal generated after successful database save
+			if (global.serverInstance && global.serverInstance.broadcastSignalGenerated) {
+				global.serverInstance.broadcastSignalGenerated(signal);
+			}
+
+			return signal;
 
 		} catch (error) {
 			console.error('Signal Generation Error:', error);

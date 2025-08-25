@@ -266,21 +266,7 @@ class SignalGenerator {
 				// Update last signal time
 				this.updateLastSignalTime(cryptocurrency, timeframe);
 
-				// Emit WebSocket notification for signal generated
-				if (global.serverInstance && global.serverInstance.broadcast) {
-					global.serverInstance.broadcast({
-						type: 'signal_generated',
-						data: {
-							cryptocurrency: signal.cryptocurrency,
-							signalType: signal.signalType,
-							timeframe: signal.timeframe,
-							price: signal.price,
-							confidence: signal.confidence,
-							timestamp: new Date().toISOString(),
-							message: `🚨 ${signal.signalType.toUpperCase()} ${signal.cryptocurrency} (${signal.timeframe}) - $${signal.price?.toFixed(2) || 'N/A'} - ${(signal.confidence * 100).toFixed(1)}% confidence`
-						}
-					});
-				}
+				// Note: WebSocket broadcast is handled by server after successful database save
 
 				console.log(`Signal generated and sent: ${cryptocurrency} ${signal.signalType.toUpperCase()} (${timeframe})`);
 			} else {
@@ -417,21 +403,7 @@ class SignalGenerator {
 					});
 				}
 
-				// Emit WebSocket notification for manual signal generated
-				if (global.serverInstance && global.serverInstance.broadcast) {
-					global.serverInstance.broadcast({
-						type: 'signal_generated',
-						data: {
-							cryptocurrency: signal.cryptocurrency,
-							signalType: signal.signalType,
-							timeframe: signal.timeframe,
-							price: signal.price,
-							confidence: signal.confidence,
-							timestamp: new Date().toISOString(),
-							message: `🚨 MANUAL ${signal.signalType.toUpperCase()} ${signal.cryptocurrency} (${signal.timeframe}) - $${signal.price?.toFixed(2) || 'N/A'} - ${(signal.confidence * 100).toFixed(1)}% confidence`
-						}
-					});
-				}
+				// Note: WebSocket broadcast is handled by server after successful database save
 
 				return signal;
 			} else {
@@ -516,6 +488,20 @@ class SignalGenerator {
 			if (signal.signalType.toLowerCase() === 'hold') {
 				console.log(`⏸️ [PAPER TRADING] Skipping HOLD signal for ${signal.cryptocurrency}`);
 				return { success: true, message: 'HOLD signal skipped' };
+			}
+
+			// Check if this exact signal was already executed (same ID)
+			if (signal.id) {
+				const signalIdKey = `signal_${signal.id}`;
+				const lastExecutionTime = this.lastSignalTime.get(signalIdKey);
+
+				if (lastExecutionTime) {
+					console.log(`⏸️ [PAPER TRADING] Signal ${signal.id} was already executed, skipping...`);
+					return { success: true, message: 'Signal already executed, skipping' };
+				}
+
+				// Mark this signal as executed
+				this.lastSignalTime.set(signalIdKey, Date.now());
 			}
 
 			// Get all paper trading accounts

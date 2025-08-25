@@ -27,7 +27,20 @@ function PaperTrading() {
 	});
 
 	// Track processed order IDs to prevent duplicates
-	const [processedOrderIds, setProcessedOrderIds] = useState(new Set());
+	const [processedOrderIds, setProcessedOrderIds] = useState(() => {
+		// Load processed order IDs from localStorage to persist across component re-renders
+		const saved = localStorage.getItem('processedOrderIds');
+		if (saved) {
+			try {
+				const parsed = JSON.parse(saved);
+				console.log(`🔍 [DEBUG] Loaded ${parsed.length} processed order IDs from localStorage`);
+				return new Set(parsed);
+			} catch (error) {
+				console.error('Error loading processed order IDs from localStorage:', error);
+			}
+		}
+		return new Set();
+	});
 
 	// Separate state for orders count to ensure it updates
 	// const [ordersCount, setOrdersCount] = useState(0);
@@ -61,16 +74,29 @@ function PaperTrading() {
 
 			// Fetch orders
 			const ordersResponse = await sendMessage('get_paper_trading_orders', { limit: 20 });
-			if (Array.isArray(ordersResponse)) {
-				setOrders(ordersResponse);
-			} else if (ordersResponse?.data) {
-				setOrders(ordersResponse.data);
-			}
+			const ordersData = Array.isArray(ordersResponse) ? ordersResponse : (ordersResponse?.data || []);
+
+			console.log(`🔍 [DEBUG] Orders received from backend: ${ordersData.length}`);
+
+			// Remove duplicates before setting orders
+			const uniqueOrders = ordersData.filter((order, index, self) =>
+				index === self.findIndex(o => o.id === order.id)
+			);
+
+			console.log(`🔍 [DEBUG] Orders after removing duplicates: ${uniqueOrders.length}`);
+
+			setOrders(uniqueOrders);
 
 			// Initialize processed order IDs with existing orders to prevent duplicates
-			const ordersData = Array.isArray(ordersResponse) ? ordersResponse : (ordersResponse?.data || []);
-			const existingOrderIds = ordersData.map(order => order.id);
-			setProcessedOrderIds(prev => new Set([...prev, ...existingOrderIds]));
+			const existingOrderIds = uniqueOrders.map(order => order.id);
+			console.log(`🔍 [DEBUG] Initializing processedOrderIds with ${existingOrderIds.length} existing orders:`, existingOrderIds);
+			setProcessedOrderIds(prev => {
+				const newSet = new Set([...prev, ...existingOrderIds]);
+				console.log(`🔍 [DEBUG] Final processedOrderIds size after initialization: ${newSet.size}`);
+				// Save to localStorage for persistence
+				localStorage.setItem('processedOrderIds', JSON.stringify([...newSet]));
+				return newSet;
+			});
 
 			console.log('✅ Paper trading data fetched successfully');
 		} catch (error) {
@@ -121,10 +147,13 @@ function PaperTrading() {
 				if (message.type === 'paper_trading_order_executed' ||
 					message.type === 'paper_trading_executed') {
 					console.log('🔄 Paper trading update received, updating specific data...');
+					console.log(`🔍 [DEBUG] WebSocket message type: ${message.type}`);
+					console.log(`🔍 [DEBUG] WebSocket message data:`, message.data);
 
 					// Update only the specific data that changed
 					if (message.type === 'paper_trading_order_executed') {
 						const orderId = message.data.orderId;
+						console.log(`🔍 [DEBUG] Processing order execution for orderId: ${orderId}`);
 
 						// Check if we've already processed this order
 						if (processedOrderIds.has(orderId)) {
@@ -132,8 +161,17 @@ function PaperTrading() {
 							return;
 						}
 
+						console.log(`🔍 [DEBUG] Processing new order: ${orderId}`);
+						console.log(`🔍 [DEBUG] Current processedOrderIds size: ${processedOrderIds.size}`);
+
 						// Mark this order as processed
-						setProcessedOrderIds(prev => new Set([...prev, orderId]));
+						setProcessedOrderIds(prev => {
+							const newSet = new Set([...prev, orderId]);
+							console.log(`🔍 [DEBUG] New processedOrderIds size: ${newSet.size}`);
+							// Save to localStorage for persistence
+							localStorage.setItem('processedOrderIds', JSON.stringify([...newSet]));
+							return newSet;
+						});
 
 						// Add new order to the orders list
 						const newOrder = {
@@ -157,6 +195,8 @@ function PaperTrading() {
 
 						console.log('➕ Adding new order:', orderId);
 						setOrders(prevOrders => {
+							console.log(`🔍 [DEBUG] Current orders before adding new: ${prevOrders.length}`);
+
 							// Check if order already exists to prevent duplicates
 							const orderExists = prevOrders.some(order => order.id === orderId);
 							if (orderExists) {
@@ -167,7 +207,11 @@ function PaperTrading() {
 							// Add new order at the beginning - it will be sorted correctly by filteredOrders
 							const newOrders = [newOrder, ...prevOrders];
 							// Keep only the latest 50 orders to prevent memory issues
-							return newOrders.slice(0, 50);
+							const finalOrders = newOrders.slice(0, 50);
+
+							console.log(`🔍 [DEBUG] Orders after adding new: ${finalOrders.length}`);
+
+							return finalOrders;
 						});
 					}
 
@@ -244,13 +288,31 @@ function PaperTrading() {
 	// Filter orders by selected account and sort by date (newest first)
 	const filteredOrders = useMemo(() => {
 		if (!orders.length || !selectedAccount) return [];
-		return orders
-			.filter(order => order.accountId === selectedAccount)
-			.sort((a, b) => {
-				const dateA = new Date(a.createdAt || a.created_at || 0);
-				const dateB = new Date(b.createdAt || b.created_at || 0);
-				return dateB - dateA; // Sort by date descending (newest first)
-			});
+
+		console.log(`🔍 [DEBUG] Total orders before filtering: ${orders.length}`);
+		console.log(`🔍 [DEBUG] Selected account: ${selectedAccount}`);
+
+		// Show all orders for debugging
+		console.log(`🔍 [DEBUG] All orders:`, orders.map(o => ({ id: o.id, accountId: o.accountId, symbol: o.symbol, side: o.side })));
+
+		// Remove duplicates and filter by account
+		const uniqueOrders = orders.filter((order, index, self) =>
+			index === self.findIndex(o => o.id === order.id) && order.accountId === selectedAccount
+		);
+
+		console.log(`🔍 [DEBUG] Orders after filtering by account ${selectedAccount}: ${uniqueOrders.length}`);
+		console.log(`🔍 [DEBUG] Filtered orders:`, uniqueOrders.map(o => ({ id: o.id, accountId: o.accountId, symbol: o.symbol, side: o.side })));
+
+		// Sort by date (newest first)
+		const sortedOrders = uniqueOrders.sort((a, b) => {
+			const dateA = new Date(a.createdAt || a.created_at || 0);
+			const dateB = new Date(b.createdAt || b.created_at || 0);
+			return dateB - dateA; // Sort by date descending (newest first)
+		});
+
+		console.log(`🔍 [DEBUG] Final filtered and sorted orders: ${sortedOrders.length}`);
+
+		return sortedOrders;
 	}, [orders, selectedAccount]);
 
 	// Update orders count whenever orders array changes

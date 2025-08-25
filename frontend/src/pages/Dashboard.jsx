@@ -87,7 +87,7 @@ function Dashboard() {
 			window.removeEventListener('signalGenerated', handleWebSocketUpdate);
 			window.removeEventListener('configUpdated', handleWebSocketUpdate);
 		};
-	}, [sendMessage, lastUpdate]);
+	}, [sendMessage, lastUpdate, retryCount]);
 
 	if (isLoading) {
 		return (

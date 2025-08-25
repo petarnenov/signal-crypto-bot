@@ -314,14 +314,21 @@ class CryptoBotServer {
 						requestId
 					}));
 
-					// Broadcast to all connected clients
-					this.broadcast({
-						type: 'signal_generated',
-						data: {
-							message: `New signal generated for ${cryptocurrency} (${timeframe})`,
-							signal: signal
-						}
-					});
+					// Broadcast signal generated after successful database save
+					if (signal && signal.signalId) {
+						this.broadcast({
+							type: 'signal_generated',
+							data: {
+								cryptocurrency: signal.cryptocurrency,
+								signalType: signal.signalType,
+								timeframe: signal.timeframe,
+								price: signal.price,
+								confidence: signal.confidence,
+								timestamp: new Date().toISOString(),
+								message: `🚨 MANUAL ${signal.signalType.toUpperCase()} ${signal.cryptocurrency} (${signal.timeframe}) - $${signal.price?.toFixed(2) || 'N/A'} - ${(signal.confidence * 100).toFixed(1)}% confidence`
+							}
+						});
+					}
 					break;
 
 				case 'get_stats':
@@ -745,6 +752,22 @@ class CryptoBotServer {
 		console.log(`Message sent to ${this.clients.size} clients`);
 	}
 
+	// Broadcast signal generated after successful database save
+	broadcastSignalGenerated(signal) {
+		this.broadcast({
+			type: 'signal_generated',
+			data: {
+				cryptocurrency: signal.cryptocurrency,
+				signalType: signal.signalType,
+				timeframe: signal.timeframe,
+				price: signal.price,
+				confidence: signal.confidence,
+				timestamp: new Date().toISOString(),
+				message: `🚨 ${signal.signalType.toUpperCase()} ${signal.cryptocurrency} (${signal.timeframe}) - $${signal.price?.toFixed(2) || 'N/A'} - ${(signal.confidence * 100).toFixed(1)}% confidence`
+			}
+		});
+	}
+
 	// Start server
 	async start() {
 		try {
@@ -766,7 +789,11 @@ class CryptoBotServer {
 			this.initWebSocket();
 		} catch (error) {
 			console.error('Failed to start server:', error);
-			process.exit(1);
+			// Don't call process.exit in tests
+			if (process.env.NODE_ENV !== 'test') {
+				process.exit(1);
+			}
+			throw error;
 		}
 	}
 
@@ -786,7 +813,10 @@ class CryptoBotServer {
 			this.db.close();
 		}
 
-		process.exit(0);
+		// Don't call process.exit in tests
+		if (process.env.NODE_ENV !== 'test') {
+			process.exit(0);
+		}
 	}
 }
 
