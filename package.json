@@ -7,9 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npx nx run-many --target=dev --all",
-    "dev:backend": "npx nx dev backend",
-    "dev:frontend": "npx nx dev frontend",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd packages/frontend && npx vite --port 3000",
+    "dev:backend": "cd packages/backend && node src/server.js",
     "build": "npx nx run-many --target=build --all",
     "build:backend": "npx nx build backend",
     "build:frontend": "npx nx build frontend",

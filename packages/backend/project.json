@@ -8,34 +8,34 @@
       "executor": "@nx/js:node",
       "options": {
         "buildTarget": "backend:build",
-        "script": "src/server.js"
-      },
-      "configurations": {
-        "development": {
-          "buildTarget": "backend:build:development"
-        }
+        "watch": true
       }
     },
     "start": {
       "executor": "@nx/js:node",
       "options": {
-        "buildTarget": "backend:build",
-        "script": "src/server.js"
+        "buildTarget": "backend:build"
       }
     },
     "build": {
       "executor": "@nx/js:tsc",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "options": {
         "outputPath": "dist/packages/backend",
         "main": "packages/backend/src/server.js",
         "tsConfig": "packages/backend/tsconfig.json",
-        "assets": ["packages/backend/src"]
+        "assets": [
+          "packages/backend/src"
+        ]
       }
     },
     "test": {
       "executor": "@nx/vite:test",
-      "outputs": ["{options.reportsDirectory}"],
+      "outputs": [
+        "{options.reportsDirectory}"
+      ],
       "options": {
         "passWithNoTests": true,
         "reportsDirectory": "../../coverage/packages/backend"
@@ -43,7 +43,9 @@
     },
     "test:integration": {
       "executor": "@nx/vite:test",
-      "outputs": ["{options.reportsDirectory}"],
+      "outputs": [
+        "{options.reportsDirectory}"
+      ],
       "options": {
         "passWithNoTests": true,
         "reportsDirectory": "../../coverage/packages/backend",
@@ -52,7 +54,9 @@
     },
     "lint": {
       "executor": "@nx/eslint:lint",
-      "outputs": ["{options.outputFile}"]
+      "outputs": [
+        "{options.outputFile}"
+      ]
     },
     "seed": {
       "executor": "@nx/js:node",
@@ -61,5 +65,8 @@
       }
     }
   },
-  "tags": ["type:app", "scope:backend"]
+  "tags": [
+    "type:app",
+    "scope:backend"
+  ]
 }
