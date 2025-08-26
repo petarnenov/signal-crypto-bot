@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import WebSocket from 'ws';
-import CryptoBotServer from '../../src/server.js';
-import CryptoBotDatabase from '../../database/db.js';
+const CryptoBotServer = require('../../src/server.js');
+const CryptoBotDatabase = require('../../database/db.js');
 
 // Mock telegram bot to prevent connection attempts
 vi.mock('../../src/telegram-bot.js', () => ({
@@ -84,20 +84,24 @@ describe('WebSocket Integration Tests', () => {
 	let server;
 	let db;
 	let ws;
-	let port = 3002; // Use different port for testing
+	let port = 0; // Use dynamic port
 
 	beforeAll(async () => {
 		// Set test environment
 		process.env.NODE_ENV = 'test';
-		process.env.PORT = port.toString();
 
 		// Create test database
 		db = new CryptoBotDatabase(':memory:');
 
-		// Start server
+		// Start server with dynamic port
 		server = new CryptoBotServer();
 		server.db = db; // Override database with test database
+		server.port = port; // Use dynamic port
 		await server.start();
+		
+		// Get the actual port that was assigned
+		port = server.server.address().port;
+		console.log(`Server started on port: ${port}`);
 	});
 
 	afterAll(async () => {
@@ -105,12 +109,7 @@ describe('WebSocket Integration Tests', () => {
 			ws.close();
 		}
 		if (server) {
-			if (server.server) {
-				server.server.close();
-			}
-			if (server.wss) {
-				server.wss.close();
-			}
+			await server.shutdown();
 		}
 		if (db) {
 			await db.close();
