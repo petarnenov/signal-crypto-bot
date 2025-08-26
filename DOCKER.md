@@ -2,7 +2,8 @@
 
 ## Overview
 
-This project is containerized using Docker and Docker Compose for easy deployment and development.
+This project is containerized using Docker and Docker Compose for easy deployment
+and development.
 
 ## Services
 
@@ -45,6 +46,7 @@ npm run docker:dev:down
 ## Available Scripts
 
 ### Production Scripts
+
 - `npm run docker:build` - Build production images
 - `npm run docker:up` - Start production services
 - `npm run docker:down` - Stop production services
@@ -54,6 +56,7 @@ npm run docker:dev:down
 - `npm run docker:rebuild` - Rebuild and restart services
 
 ### Development Scripts
+
 - `npm run docker:dev:build` - Build development images
 - `npm run docker:dev:up` - Start development services
 - `npm run docker:dev:down` - Stop development services
@@ -99,10 +102,12 @@ LOG_LEVEL=info
 ## Development Features
 
 ### Hot Reload
+
 - Backend: Source code changes trigger automatic restart
 - Frontend: Vite hot module replacement for instant updates
 
 ### Volume Mounts
+
 - Source code is mounted as volumes for live editing
 - Database files persist between container restarts
 
@@ -144,10 +149,12 @@ docker-compose exec backend cp /app/database/backup.db /app/database/crypto_bot.
 ## Monitoring
 
 ### Prometheus
+
 - Metrics endpoint: http://localhost:3001/metrics
 - Prometheus UI: http://localhost:9090
 
 ### Grafana
+
 - URL: http://localhost:3002
 - Username: admin
 - Password: admin
