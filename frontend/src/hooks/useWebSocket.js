@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useToast } from './useToast';
 
 const useWebSocket = () => {
@@ -7,6 +7,7 @@ const useWebSocket = () => {
 	const isConnectingRef = useRef(false);
 	const pendingRequests = useRef(new Map());
 	const toastDebounceRef = useRef(new Map()); // Track recent toasts to prevent duplicates
+	const [isOnline, setIsOnline] = useState(false);
 	const { showToast } = useToast();
 
 	// Debounced toast function to prevent duplicates
@@ -54,6 +55,7 @@ const useWebSocket = () => {
 			ws.current.onopen = () => {
 				console.log('WebSocket connected successfully');
 				isConnectingRef.current = false;
+				setIsOnline(true);
 			};
 
 			ws.current.onmessage = (event) => {
@@ -118,6 +120,7 @@ const useWebSocket = () => {
 			ws.current.onclose = (event) => {
 				console.log('WebSocket disconnected', event.code, event.reason);
 				isConnectingRef.current = false;
+				setIsOnline(false);
 
 				// Only reject pending requests if it's not a clean close
 				if (event.code !== 1000 && event.code !== 1001) {
@@ -139,6 +142,7 @@ const useWebSocket = () => {
 			ws.current.onerror = (error) => {
 				console.error('WebSocket error:', error);
 				isConnectingRef.current = false;
+				setIsOnline(false);
 			};
 		} catch (error) {
 			console.error('Failed to create WebSocket connection:', error);
@@ -223,7 +227,7 @@ const useWebSocket = () => {
 		};
 	}, [connect]);
 
-	return { ws: ws.current, sendMessage };
+	return { ws: ws.current, sendMessage, isOnline };
 };
 
 export default useWebSocket;

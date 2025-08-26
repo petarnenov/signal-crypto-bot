@@ -10,7 +10,7 @@ import { SignalProvider } from './context/SignalContext.jsx';
 import { ToastProvider } from './context/ToastContext.jsx';
 import Modal from './components/Modal.jsx';
 import useModal from './hooks/useModal.js';
-// import useWebSocket from './hooks/useWebSocket';
+import useWebSocket from './hooks/useWebSocket';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import PageErrorBoundary from './components/PageErrorBoundary.jsx';
 
@@ -40,26 +40,13 @@ function App() {
 
 function AppContent({ modalState, hideModal, showSuccess, showError, showInfo, showWarning, showConfirm }) {
 	// Initialize WebSocket connection inside ToastProvider
-	// const { ws, sendMessage } = useWebSocket();
-	// const [isOnline, setIsOnline] = useState(false);
-
-	// Check if WebSocket is connected
-	// useEffect(() => {
-	// 	if (ws && ws.readyState === WebSocket.OPEN) {
-	// 		setIsOnline(true);
-	// 	} else if (sendMessage) {
-	// 		// If sendMessage is available, we can assume connection is ready
-	// 		setIsOnline(true);
-	// 	} else {
-	// 		setIsOnline(false);
-	// 	}
-	// }, [ws, sendMessage]);
+	const { isOnline } = useWebSocket();
 
 	return (
 		<SignalProvider modalFunctions={{ showSuccess, showError, showInfo, showWarning, showConfirm }}>
 			<Router future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
 				<div className="flex h-screen bg-gray-100">
-					<Sidebar isOnline={true} />
+					<Sidebar isOnline={isOnline} />
 					<main className="flex-1 overflow-auto">
 						<Routes>
 							<Route path="/" element={
