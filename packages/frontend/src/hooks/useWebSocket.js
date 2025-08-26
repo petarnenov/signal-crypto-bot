@@ -45,9 +45,7 @@ const useWebSocket = () => {
 		isConnectingRef.current = true;
 
 		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-		// Use test port if available (for testing), otherwise use default port
-		const port = process.env.NODE_ENV === 'test' && global.testPort ? global.testPort : 3001;
-		const wsUrl = `${protocol}//${window.location.hostname}:${port}`;
+		const wsUrl = `${protocol}//${window.location.host}/ws/`;
 
 		try {
 			ws.current = new WebSocket(wsUrl);

@@ -1,32 +1,61 @@
 version: "3.8"
 
 services:
-  crypto-bot:
-    build: .
+  # Backend service
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile
     ports:
-      - "5000:5000"
+      - "3001:3001"
     environment:
       - NODE_ENV=production
-      - PORT=5000
+      - PORT=3001
       - DATABASE_PATH=/app/database/crypto_bot.db
       - LOG_LEVEL=info
-      - LOG_FILE=/app/logs/app.log
     env_file:
       - .env
     volumes:
-      - ./database:/app/database
+      - ./packages/database:/app/database
       - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/api/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/status"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
       - crypto-bot-network
+    depends_on:
+      - database
 
-  # Optional: Add monitoring with Prometheus and Grafana
+  # Frontend service
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=http://localhost:3001
+    restart: unless-stopped
+    networks:
+      - crypto-bot-network
+    depends_on:
+      - backend
+
+  # Database service (SQLite file)
+  database:
+    image: alpine:latest
+    volumes:
+      - ./packages/database:/app/database
+    command: ["sh", "-c", "echo 'Database volume mounted' && tail -f /dev/null"]
+    networks:
+      - crypto-bot-network
+
+  # Optional: Monitoring with Prometheus
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -45,10 +74,11 @@ services:
     networks:
       - crypto-bot-network
 
+  # Optional: Grafana for monitoring
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3001:3000"
+      - "3002:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:

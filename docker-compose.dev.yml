@@ -1,0 +1,65 @@
+version: "3.8"
+
+services:
+  # Backend service (development)
+  backend:
+    build:
+      context: .
+      dockerfile: packages/backend/Dockerfile.dev
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DATABASE_PATH=/app/database/crypto_bot.db
+      - LOG_LEVEL=debug
+    env_file:
+      - .env
+    volumes:
+      - ./packages/backend/src:/app/packages/backend/src
+      - ./packages/database:/app/packages/database
+      - ./packages/shared:/app/packages/shared
+      - ./logs:/app/logs
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - crypto-bot-network
+    depends_on:
+      - database
+
+  # Frontend service (development)
+  frontend:
+    build:
+      context: .
+      dockerfile: packages/frontend/Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:3001
+    volumes:
+      - ./packages/frontend/src:/app/packages/frontend/src
+      - ./packages/frontend/index.html:/app/packages/frontend/index.html
+      - ./packages/frontend/vite.config.js:/app/packages/frontend/vite.config.js
+      - ./packages/frontend/tailwind.config.js:/app/packages/frontend/tailwind.config.js
+      - ./packages/frontend/postcss.config.js:/app/packages/frontend/postcss.config.js
+      - ./packages/shared:/app/packages/shared
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - crypto-bot-network
+    depends_on:
+      - backend
+
+  # Database service (SQLite file)
+  database:
+    image: alpine:latest
+    volumes:
+      - ./packages/database:/app/database
+    command: ["sh", "-c", "echo 'Database volume mounted' && tail -f /dev/null"]
+    networks:
+      - crypto-bot-network
+
+networks:
+  crypto-bot-network:
+    driver: bridge

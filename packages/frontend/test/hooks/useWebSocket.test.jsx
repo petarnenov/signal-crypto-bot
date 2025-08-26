@@ -26,7 +26,8 @@ global.WebSocket = vi.fn(() => ({
 Object.defineProperty(window, 'location', {
 	value: {
 		protocol: 'http:',
-		hostname: 'localhost'
+		hostname: 'localhost',
+		host: 'localhost:3000'
 	},
 	writable: true
 });
@@ -167,10 +168,10 @@ describe('useWebSocket Hook', () => {
 		it('should create WebSocket connection on mount', () => {
 			renderHook(() => useWebSocket(), { wrapper });
 
-			// Check that WebSocket was called with any localhost URL
+			// Check that WebSocket was called with the correct URL format
 			expect(global.WebSocket).toHaveBeenCalled();
 			const callArgs = global.WebSocket.mock.calls[0][0];
-			expect(callArgs).toMatch(/^ws:\/\/localhost:\d+$/);
+			expect(callArgs).toMatch(/^ws:\/\/localhost:\d+\/ws\/$/);
 		});
 
 		it('should handle connection events properly', async () => {

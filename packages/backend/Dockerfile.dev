@@ -1,0 +1,30 @@
+# Use Node.js 20 Alpine for smaller image size
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache curl
+
+# Copy package files
+COPY package*.json ./
+COPY packages/backend/package*.json ./packages/backend/
+COPY packages/database/package*.json ./packages/database/
+COPY packages/shared/package*.json ./packages/shared/
+
+# Copy nx configuration
+COPY nx.json ./
+COPY tsconfig*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci
+
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Expose port
+EXPOSE 3001
+
+# Start the application with nodemon for development
+CMD ["npm", "run", "dev:backend"]
