@@ -1,0 +1,33 @@
+{
+  "name": "@signal-crypto-bot/database",
+  "version": "1.0.0",
+  "description": "Database layer for Signal Crypto Bot",
+  "main": "db.js",
+  "exports": {
+    ".": "./db.js"
+  },
+  "scripts": {
+    "test": "vitest run --config vitest.config.js",
+    "test:watch": "vitest --config vitest.config.js",
+    "test:coverage": "vitest run --coverage --config vitest.config.js",
+    "lint": "eslint src/**/*.js test/**/*.js",
+    "lint:fix": "eslint src/**/*.js test/**/*.js --fix"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.2.2",
+    "sqlite3": "^5.1.6"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "vitest": "^1.0.4"
+  },
+  "keywords": [
+    "database",
+    "sqlite",
+    "crypto",
+    "trading",
+    "signals"
+  ],
+  "author": "Petar Petrov",
+  "license": "MIT"
+}

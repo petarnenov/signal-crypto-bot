@@ -1,0 +1,65 @@
+{
+  "name": "backend",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/backend/src",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "executor": "@nx/js:node",
+      "options": {
+        "buildTarget": "backend:build",
+        "script": "src/server.js"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "backend:build:development"
+        }
+      }
+    },
+    "start": {
+      "executor": "@nx/js:node",
+      "options": {
+        "buildTarget": "backend:build",
+        "script": "src/server.js"
+      }
+    },
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/backend",
+        "main": "packages/backend/src/server.js",
+        "tsConfig": "packages/backend/tsconfig.json",
+        "assets": ["packages/backend/src"]
+      }
+    },
+    "test": {
+      "executor": "@nx/vite:test",
+      "outputs": ["{options.reportsDirectory}"],
+      "options": {
+        "passWithNoTests": true,
+        "reportsDirectory": "../../coverage/packages/backend"
+      }
+    },
+    "test:integration": {
+      "executor": "@nx/vite:test",
+      "outputs": ["{options.reportsDirectory}"],
+      "options": {
+        "passWithNoTests": true,
+        "reportsDirectory": "../../coverage/packages/backend",
+        "config": "packages/backend/vitest.integration.config.js"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"]
+    },
+    "seed": {
+      "executor": "@nx/js:node",
+      "options": {
+        "script": "seed-database.js"
+      }
+    }
+  },
+  "tags": ["type:app", "scope:backend"]
+}

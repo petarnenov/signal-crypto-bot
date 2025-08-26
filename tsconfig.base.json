@@ -1,0 +1,25 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "es2015",
+    "module": "esnext",
+    "lib": ["es2020", "dom"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@signal-crypto-bot/shared": ["packages/shared/src/index.js"],
+      "@signal-crypto-bot/database": ["packages/database/src/db.js"],
+      "@signal-crypto-bot/backend": ["packages/backend/src/server.js"],
+      "@signal-crypto-bot/frontend": ["packages/frontend/src"]
+    }
+  },
+  "exclude": ["node_modules", "tmp"]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@signal-crypto-bot/shared",
+  "version": "1.0.0",
+  "description": "Shared utilities and types for Signal Crypto Bot",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "vitest run --config vitest.config.js",
+    "test:watch": "vitest --config vitest.config.js",
+    "test:coverage": "vitest run --coverage --config vitest.config.js",
+    "lint": "eslint src/**/*.js test/**/*.js",
+    "lint:fix": "eslint src/**/*.js test/**/*.js --fix"
+  },
+  "dependencies": {
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "vitest": "^1.0.4"
+  },
+  "keywords": [
+    "shared",
+    "utilities",
+    "types",
+    "crypto",
+    "trading"
+  ],
+  "author": "Petar Petrov",
+  "license": "MIT"
+}

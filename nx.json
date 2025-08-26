@@ -1,0 +1,64 @@
+{
+  "extends": "nx/presets/npm.json",
+  "affected": {
+    "defaultBase": "main"
+  },
+  "tasksRunnerOptions": {
+    "default": {
+      "runner": "nx/tasks-runners/default",
+      "options": {
+        "cacheableOperations": [
+          "build",
+          "test",
+          "lint"
+        ]
+      }
+    }
+  },
+  "targetDefaults": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "test": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "lint": {
+      "dependsOn": [
+        "^lint"
+      ]
+    }
+  },
+  "generators": {
+    "@nx/react": {
+      "application": {
+        "style": "tailwind",
+        "linter": "eslint",
+        "bundler": "vite",
+        "unitTestRunner": "vitest",
+        "e2eTestRunner": "playwright"
+      },
+      "component": {
+        "style": "tailwind"
+      },
+      "library": {
+        "style": "tailwind",
+        "linter": "eslint",
+        "unitTestRunner": "vitest"
+      }
+    },
+    "@nx/node": {
+      "application": {
+        "linter": "eslint",
+        "unitTestRunner": "vitest"
+      },
+      "library": {
+        "linter": "eslint",
+        "unitTestRunner": "vitest"
+      }
+    }
+  },
+}
