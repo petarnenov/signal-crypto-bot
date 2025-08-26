@@ -296,8 +296,11 @@ class CryptoBotServer {
 					} catch (error) {
 						console.error('Error getting signals:', error);
 						ws.send(JSON.stringify({
-							type: 'signals_response',
-							data: [],
+							type: 'error',
+							data: {
+								message: `Error getting signals: ${error.message}`,
+								code: error.code || 'UNKNOWN_ERROR'
+							},
 							requestId
 						}));
 					}
@@ -478,22 +481,15 @@ class CryptoBotServer {
 					let orders = [];
 					try {
 						if (orderAccountId) {
+							// Get orders for specific account
 							const accountOrders = await this.paperTradingService.getOrders(orderAccountId, orderLimit);
 							orders = accountOrders || [];
 						} else {
-							// Get orders for all accounts
-							const allAccounts = [];
-							const user1Accounts = await this.paperTradingService.getUserAccounts('user1');
-							const user2Accounts = await this.paperTradingService.getUserAccounts('user2');
-							allAccounts.push(...user1Accounts, ...user2Accounts);
+							// Get all orders directly from database
+							const allOrders = this.db.getPaperTradingOrders(null, orderLimit);
+							orders = allOrders || [];
 
-							for (const account of allAccounts) {
-								const accountOrders = await this.paperTradingService.getOrders(account.id, orderLimit);
-								if (accountOrders && Array.isArray(accountOrders)) {
-									orders.push(...accountOrders);
-								}
-							}
-							// Sort orders by creation date
+							// Sort orders by creation date (newest first)
 							orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 						}
 					} catch (error) {
@@ -515,6 +511,46 @@ class CryptoBotServer {
 						data: orderResult,
 						requestId
 					}));
+					break;
+
+				case 'get_user_setting':
+					const { userId: settingUserId, settingKey } = payload;
+					try {
+						console.log(`🔍 [SERVER] Getting user setting: userId=${settingUserId}, settingKey=${settingKey}`);
+						const settingValue = await this.paperTradingService.getUserSetting(settingUserId, settingKey);
+						console.log(`🔍 [SERVER] User setting value: ${settingValue}`);
+						ws.send(JSON.stringify({
+							type: 'user_setting_response',
+							data: { settingKey, settingValue },
+							requestId
+						}));
+					} catch (error) {
+						console.error('Error getting user setting:', error);
+						ws.send(JSON.stringify({
+							type: 'error',
+							data: { message: 'Error getting user setting' },
+							requestId
+						}));
+					}
+					break;
+
+				case 'set_user_setting':
+					const { userId: setSettingUserId, settingKey: setSettingKey, settingValue } = payload;
+					try {
+						await this.paperTradingService.setUserSetting(setSettingUserId, setSettingKey, settingValue);
+						ws.send(JSON.stringify({
+							type: 'user_setting_updated_response',
+							data: { settingKey: setSettingKey, settingValue },
+							requestId
+						}));
+					} catch (error) {
+						console.error('Error setting user setting:', error);
+						ws.send(JSON.stringify({
+							type: 'error',
+							data: { message: 'Error setting user setting' },
+							requestId
+						}));
+					}
 					break;
 
 				case 'broadcast':

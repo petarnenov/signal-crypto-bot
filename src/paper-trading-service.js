@@ -221,7 +221,8 @@ class PaperTradingService {
 
 	// Create local order record
 	createLocalOrder(binanceOrder, accountId, symbol, side, quantity, price, isRealOrder) {
-		const orderId = `order_${uuidv4()}`;
+		const timestamp = Date.now();
+		const orderId = `order_${accountId}_${timestamp}_${uuidv4()}`;
 
 		// Check if order with this ID already exists
 		if (this.orders.has(orderId)) {
@@ -365,7 +366,8 @@ class PaperTradingService {
 			}
 
 			// Create pending order
-			const orderId = `order_${uuidv4()}`;
+			const timestamp = Date.now();
+			const orderId = `order_${accountId}_${timestamp}_${uuidv4()}`;
 			const order = {
 				id: orderId,
 				accountId: accountId,
@@ -781,9 +783,14 @@ class PaperTradingService {
 		}
 	}
 
-	// Get orders (alias for getOrderHistory for compatibility)
+	// Get orders for specific account (alias for getOrderHistory for compatibility)
 	async getOrders(accountId, limit = 100) {
 		try {
+			// Handle "all" limit
+			if (limit === 'all') {
+				limit = 1000; // Use a large number to get all orders
+			}
+			
 			const orders = this.db.getPaperTradingOrders(accountId, limit);
 			return orders;
 		} catch (error) {
@@ -823,7 +830,7 @@ class PaperTradingService {
 	}
 
 	// Get all orders (for admin view)
-	async getOrders(limit = 100) {
+	async getAllOrders(limit = 100) {
 		try {
 			const allOrders = [];
 			const accounts = this.db.getPaperTradingAccounts();
@@ -836,7 +843,14 @@ class PaperTradingService {
 			}
 
 			// Sort by creation date descending
-			return allOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+			const sortedOrders = allOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+			
+			// Apply limit after sorting
+			if (limit && limit !== 'all' && typeof limit === 'number' && limit > 0) {
+				return sortedOrders.slice(0, limit);
+			}
+			
+			return sortedOrders;
 		} catch (error) {
 			console.error('Error getting all orders:', error);
 			throw error;
@@ -906,6 +920,34 @@ class PaperTradingService {
 		} catch (error) {
 			console.error('Error calculating total PnL:', error);
 			throw error;
+		}
+	}
+
+	// User settings methods
+	async getUserSetting(userId, settingKey) {
+		try {
+			return this.db.getUserSetting(userId, settingKey);
+		} catch (error) {
+			console.error('Error getting user setting:', error);
+			return null;
+		}
+	}
+
+	async setUserSetting(userId, settingKey, settingValue) {
+		try {
+			return this.db.setUserSetting(userId, settingKey, settingValue);
+		} catch (error) {
+			console.error('Error setting user setting:', error);
+			throw error;
+		}
+	}
+
+	async getAllUserSettings(userId) {
+		try {
+			return this.db.getAllUserSettings(userId);
+		} catch (error) {
+			console.error('Error getting all user settings:', error);
+			return [];
 		}
 	}
 
@@ -1100,7 +1142,8 @@ class PaperTradingService {
 			}
 
 			// Create order ID
-			const orderId = `order_${uuidv4()}`;
+			const timestamp = Date.now();
+			const orderId = `order_${accountId}_${timestamp}_${uuidv4()}`;
 
 			// Check if order with this ID already exists
 			if (this.orders.has(orderId)) {

@@ -50,6 +50,7 @@ function Sidebar({ isOnline }) {
 					{navItems.map((item) => (
 						<li key={item.path}>
 							<NavLink
+								data-testid={`sidebar-${item.path.replace('/', '').replace('-', '-')}`}
 								to={item.path}
 								className={({ isActive }) =>
 									`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${isActive

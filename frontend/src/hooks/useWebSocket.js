@@ -90,7 +90,8 @@ const useWebSocket = () => {
 					} else if (data.type === 'connection_status') {
 						console.log('WebSocket connection status:', data.data.message);
 					} else if (data.type === 'paper_trading_order_executed' ||
-						data.type === 'paper_trading_executed') {
+						data.type === 'paper_trading_executed' ||
+						data.type === 'paper_trading_error') {
 						// Dispatch custom event for paper trading updates
 						window.dispatchEvent(new CustomEvent('websocket_message', {
 							detail: data

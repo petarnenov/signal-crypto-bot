@@ -421,13 +421,25 @@ class CryptoBotDatabase {
 	}
 
 	getPaperTradingOrders(accountId, limit = 100) {
-		const stmt = this.db.prepare(`
-			SELECT * FROM paper_trading_orders 
-			WHERE accountId = ? 
-			ORDER BY createdAt DESC 
-			LIMIT ?
-		`);
-		return stmt.all(accountId, parseInt(limit) || 100);
+		let stmt;
+		if (accountId) {
+			// Get orders for specific account
+			stmt = this.db.prepare(`
+				SELECT * FROM paper_trading_orders 
+				WHERE accountId = ? 
+				ORDER BY createdAt DESC 
+				LIMIT ?
+			`);
+			return stmt.all(accountId, parseInt(limit) || 100);
+		} else {
+			// Get all orders
+			stmt = this.db.prepare(`
+				SELECT * FROM paper_trading_orders 
+				ORDER BY createdAt DESC 
+				LIMIT ?
+			`);
+			return stmt.all(parseInt(limit) || 100);
+		}
 	}
 
 	getPaperTradingOrder(orderId) {
@@ -472,6 +484,32 @@ class CryptoBotDatabase {
 			DELETE FROM paper_trading_positions WHERE id = ?
 		`);
 		return stmt.run(positionId);
+	}
+
+	// User settings methods
+	getUserSetting(userId, settingKey) {
+		const stmt = this.db.prepare(`
+			SELECT settingValue FROM user_settings 
+			WHERE userId = ? AND settingKey = ?
+		`);
+		const result = stmt.get(userId, settingKey);
+		return result ? result.settingValue : null;
+	}
+
+	setUserSetting(userId, settingKey, settingValue) {
+		const stmt = this.db.prepare(`
+			INSERT OR REPLACE INTO user_settings (userId, settingKey, settingValue, updatedAt)
+			VALUES (?, ?, ?, ?)
+		`);
+		return stmt.run(userId, settingKey, settingValue, new Date().toISOString());
+	}
+
+	getAllUserSettings(userId) {
+		const stmt = this.db.prepare(`
+			SELECT settingKey, settingValue FROM user_settings 
+			WHERE userId = ?
+		`);
+		return stmt.all(userId);
 	}
 
 	// Utility methods

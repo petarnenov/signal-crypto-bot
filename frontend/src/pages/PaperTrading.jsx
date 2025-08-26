@@ -25,28 +25,21 @@ function PaperTrading() {
 		const saved = localStorage.getItem('paperTradingSelectedAccount');
 		return saved || '';
 	});
+	const [ordersLimit, setOrdersLimit] = useState('all'); // 'all' or number
+	const [showLimitSelector, setShowLimitSelector] = useState(false);
 
-	// Track processed order IDs to prevent duplicates
-	const [processedOrderIds, setProcessedOrderIds] = useState(() => {
-		// Load processed order IDs from localStorage to persist across component re-renders
-		const saved = localStorage.getItem('processedOrderIds');
-		if (saved) {
-			try {
-				const parsed = JSON.parse(saved);
-				console.log(`🔍 [DEBUG] Loaded ${parsed.length} processed order IDs from localStorage`);
-				return new Set(parsed);
-			} catch (error) {
-				console.error('Error loading processed order IDs from localStorage:', error);
-			}
-		}
-		return new Set();
-	});
+
 
 	// Separate state for orders count to ensure it updates
 	// const [ordersCount, setOrdersCount] = useState(0);
 
 	// Fetch paper trading data (no retry)
 	const fetchPaperTradingData = useCallback(async () => {
+		console.log(`🔄 [DEBUG] ===== fetchPaperTradingData START =====`);
+		console.log(`🔄 [DEBUG] sendMessage available: ${!!sendMessage}`);
+		console.log(`🔄 [DEBUG] Current ordersLimit: ${ordersLimit}`);
+		console.log(`🔄 [DEBUG] Current selectedAccount: ${selectedAccount}`);
+
 		if (!sendMessage) {
 			console.log('⚠️ sendMessage not available');
 			return;
@@ -54,8 +47,7 @@ function PaperTrading() {
 
 		setIsLoading(true);
 		try {
-			console.log('🔄 Fetching paper trading data...');
-
+			console.log('🔄 [DEBUG] Fetching accounts...');
 			// Fetch accounts
 			const accountsResponse = await sendMessage('get_paper_trading_accounts');
 			if (Array.isArray(accountsResponse)) {
@@ -63,7 +55,9 @@ function PaperTrading() {
 			} else if (accountsResponse?.data) {
 				setAccounts(accountsResponse.data);
 			}
+			console.log('🔄 [DEBUG] Accounts fetched');
 
+			console.log('🔄 [DEBUG] Fetching positions...');
 			// Fetch positions
 			const positionsResponse = await sendMessage('get_paper_trading_positions');
 			if (Array.isArray(positionsResponse)) {
@@ -71,51 +65,140 @@ function PaperTrading() {
 			} else if (positionsResponse?.data) {
 				setPositions(positionsResponse.data);
 			}
+			console.log('🔄 [DEBUG] Positions fetched');
 
-			// Fetch orders
-			const ordersResponse = await sendMessage('get_paper_trading_orders', { limit: 20 });
+			console.log('🔄 [DEBUG] Fetching orders...');
+			// Fetch orders for selected account (if selected) or all orders
+			const ordersParams = {
+				...(selectedAccount && { accountId: selectedAccount }),
+				limit: ordersLimit === 'all' ? 1000 : parseInt(ordersLimit) || 100
+			};
+			console.log('🔄 [DEBUG] Orders params:', ordersParams);
+
+			const ordersResponse = await sendMessage('get_paper_trading_orders', ordersParams);
 			const ordersData = Array.isArray(ordersResponse) ? ordersResponse : (ordersResponse?.data || []);
+			console.log(`🔄 [DEBUG] Orders fetched: ${ordersData.length} orders`);
 
-			console.log(`🔍 [DEBUG] Orders received from backend: ${ordersData.length}`);
+			setOrders(ordersData);
 
-			// Remove duplicates before setting orders
-			const uniqueOrders = ordersData.filter((order, index, self) =>
-				index === self.findIndex(o => o.id === order.id)
-			);
-
-			console.log(`🔍 [DEBUG] Orders after removing duplicates: ${uniqueOrders.length}`);
-
-			setOrders(uniqueOrders);
-
-			// Initialize processed order IDs with existing orders to prevent duplicates
-			const existingOrderIds = uniqueOrders.map(order => order.id);
-			console.log(`🔍 [DEBUG] Initializing processedOrderIds with ${existingOrderIds.length} existing orders:`, existingOrderIds);
-			setProcessedOrderIds(prev => {
-				const newSet = new Set([...prev, ...existingOrderIds]);
-				console.log(`🔍 [DEBUG] Final processedOrderIds size after initialization: ${newSet.size}`);
-				// Save to localStorage for persistence
-				localStorage.setItem('processedOrderIds', JSON.stringify([...newSet]));
-				return newSet;
-			});
-
-			console.log('✅ Paper trading data fetched successfully');
+			console.log('✅ [DEBUG] Paper trading data fetched successfully');
 		} catch (error) {
-			console.error('Error fetching paper trading data:', error);
+			console.error('❌ [DEBUG] Error fetching paper trading data:', error);
 			// NO RETRY - just show error and continue
 		} finally {
 			setIsLoading(false);
+			console.log(`🔄 [DEBUG] ===== fetchPaperTradingData END =====`);
+		}
+	}, [sendMessage, ordersLimit, selectedAccount]);
+
+	// Load user settings
+	const loadUserSettings = useCallback(async () => {
+		if (!sendMessage) {
+			console.log('⚠️ [DEBUG] sendMessage not available in loadUserSettings');
+			return;
+		}
+
+		try {
+			console.log('🔄 [DEBUG] Loading user settings...');
+			console.log('🔄 [DEBUG] Sending get_user_setting message...');
+			const response = await sendMessage('get_user_setting', {
+				userId: 'default',
+				settingKey: 'orders_limit'
+			});
+
+			console.log('🔄 [DEBUG] User settings response:', response);
+			console.log('🔄 [DEBUG] Response type:', typeof response);
+			console.log('🔄 [DEBUG] Response keys:', Object.keys(response || {}));
+
+			if (response?.settingValue) {
+				console.log(`🔄 [DEBUG] Setting orders limit to: ${response.settingValue}`);
+				setOrdersLimit(response.settingValue);
+			} else {
+				console.log('🔄 [DEBUG] No setting value found, using default: all');
+				console.log('🔄 [DEBUG] Response settingValue:', response?.settingValue);
+				setOrdersLimit('all');
+			}
+		} catch (error) {
+			console.error('❌ [DEBUG] Error loading user settings:', error);
 		}
 	}, [sendMessage]);
+
+	// Save user setting
+	const saveUserSetting = useCallback(async (settingKey, settingValue) => {
+		console.log(`🔄 [DEBUG] ===== saveUserSetting START =====`);
+		console.log(`🔄 [DEBUG] Setting key: ${settingKey}`);
+		console.log(`🔄 [DEBUG] Setting value: ${settingValue}`);
+		console.log(`🔄 [DEBUG] sendMessage available: ${!!sendMessage}`);
+
+		if (!sendMessage) {
+			console.log('⚠️ [DEBUG] sendMessage not available');
+			return;
+		}
+
+		try {
+			console.log('🔄 [DEBUG] Sending set_user_setting message...');
+			const response = await sendMessage('set_user_setting', {
+				userId: 'default',
+				settingKey,
+				settingValue
+			});
+			console.log('🔄 [DEBUG] set_user_setting response:', response);
+			console.log('✅ [DEBUG] User setting saved successfully');
+		} catch (error) {
+			console.error('❌ [DEBUG] Error saving user setting:', error);
+		}
+		console.log(`🔄 [DEBUG] ===== saveUserSetting END =====`);
+	}, [sendMessage]);
+
+	// Handle orders limit change
+	const handleOrdersLimitChange = useCallback(async (newLimit) => {
+		console.log(`🔄 [DEBUG] ===== handleOrdersLimitChange START =====`);
+		console.log(`🔄 [DEBUG] New limit requested: ${newLimit}`);
+		console.log(`🔄 [DEBUG] Current ordersLimit: ${ordersLimit}`);
+
+		// Update state immediately for UI responsiveness
+		setOrdersLimit(newLimit);
+		console.log(`🔄 [DEBUG] Set ordersLimit state to: ${newLimit}`);
+
+		try {
+			await saveUserSetting('orders_limit', newLimit);
+			console.log(`🔄 [DEBUG] ✅ User setting saved successfully`);
+		} catch (error) {
+			console.error('❌ [DEBUG] Error saving user setting:', error);
+		}
+
+		console.log(`🔄 [DEBUG] ===== handleOrdersLimitChange END =====`);
+	}, [saveUserSetting]);
 
 	// Refresh data
 	const handleRefresh = () => {
 		fetchPaperTradingData();
 	};
 
-	// Load data on mount
+	// Load settings first, then data
 	useEffect(() => {
-		fetchPaperTradingData();
-	}, [fetchPaperTradingData]);
+		console.log('🔄 [DEBUG] useEffect for loadUserSettings triggered');
+		console.log('🔄 [DEBUG] sendMessage available:', !!sendMessage);
+		loadUserSettings();
+	}, [loadUserSettings]);
+
+	// Load data after settings are loaded
+	useEffect(() => {
+		if (ordersLimit) {
+			fetchPaperTradingData();
+		}
+	}, [fetchPaperTradingData, selectedAccount]);
+
+	// Refresh data when orders limit changes
+	useEffect(() => {
+		if (ordersLimit && sendMessage) {
+			console.log(`🔄 [DEBUG] ===== useEffect triggered by ordersLimit change =====`);
+			console.log(`🔄 [DEBUG] New ordersLimit: ${ordersLimit}`);
+			console.log(`🔄 [DEBUG] sendMessage available: ${!!sendMessage}`);
+			console.log(`🔄 [DEBUG] Calling fetchPaperTradingData...`);
+			fetchPaperTradingData();
+		}
+	}, [ordersLimit, sendMessage]);
 
 	// Auto-select first account when accounts are loaded
 	useEffect(() => {
@@ -137,107 +220,44 @@ function PaperTrading() {
 		}
 	}, [selectedAccount]);
 
+	// Close limit selector when clicking outside
+	useEffect(() => {
+		const handleClickOutside = (event) => {
+			console.log(`🔄 [DEBUG] Click outside detected, target:`, event.target);
+			console.log(`🔄 [DEBUG] showLimitSelector: ${showLimitSelector}`);
+			console.log(`🔄 [DEBUG] Is orders-limit-button: ${event.target.closest('[data-testid="orders-limit-button"]')}`);
+			console.log(`🔄 [DEBUG] Is orders-limit-dropdown: ${event.target.closest('[data-testid="orders-limit-dropdown"]')}`);
+
+			if (showLimitSelector && !event.target.closest('[data-testid="orders-limit-button"]') && !event.target.closest('[data-testid="orders-limit-dropdown"]')) {
+				console.log('🔄 [DEBUG] Closing dropdown - clicked outside');
+				setShowLimitSelector(false);
+			}
+		};
+
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => {
+			document.removeEventListener('mousedown', handleClickOutside);
+		};
+	}, [showLimitSelector]);
+
 	// Listen for WebSocket updates
 	useEffect(() => {
 		const handleWebSocketEvent = (event) => {
 			if (event.detail && event.detail.type) {
 				const message = event.detail;
 
-				// Update data when new orders are executed
+				// Update data when new orders are executed or errors occur
 				if (message.type === 'paper_trading_order_executed' ||
-					message.type === 'paper_trading_executed') {
-					console.log('🔄 Paper trading update received, updating specific data...');
+					message.type === 'paper_trading_executed' ||
+					message.type === 'paper_trading_error') {
+					console.log('🔄 Paper trading update received, refreshing data from database...');
 					console.log(`🔍 [DEBUG] WebSocket message type: ${message.type}`);
 					console.log(`🔍 [DEBUG] WebSocket message data:`, message.data);
 
-					// Update only the specific data that changed
-					if (message.type === 'paper_trading_order_executed') {
-						const orderId = message.data.orderId;
-						console.log(`🔍 [DEBUG] Processing order execution for orderId: ${orderId}`);
-
-						// Check if we've already processed this order
-						if (processedOrderIds.has(orderId)) {
-							console.log('🔄 Order already processed, skipping:', orderId);
-							return;
-						}
-
-						console.log(`🔍 [DEBUG] Processing new order: ${orderId}`);
-						console.log(`🔍 [DEBUG] Current processedOrderIds size: ${processedOrderIds.size}`);
-
-						// Mark this order as processed
-						setProcessedOrderIds(prev => {
-							const newSet = new Set([...prev, orderId]);
-							console.log(`🔍 [DEBUG] New processedOrderIds size: ${newSet.size}`);
-							// Save to localStorage for persistence
-							localStorage.setItem('processedOrderIds', JSON.stringify([...newSet]));
-							return newSet;
-						});
-
-						// Add new order to the orders list
-						const newOrder = {
-							id: orderId,
-							accountId: message.data.accountId,
-							symbol: message.data.symbol,
-							side: message.data.side,
-							quantity: message.data.quantity,
-							price: message.data.executionPrice, // Use 'price' to match database
-							executionPrice: message.data.executionPrice,
-							amount: message.data.amount,
-							commission: message.data.commission,
-							status: 'FILLED',
-							created_at: message.data.timestamp, // Use the timestamp from the message
-							createdAt: message.data.timestamp,
-							filledAt: message.data.timestamp,
-							isRealOrder: message.data.isRealOrder
-						};
-
-						console.log('🆕 New order created with timestamp:', message.data.timestamp);
-
-						console.log('➕ Adding new order:', orderId);
-						setOrders(prevOrders => {
-							console.log(`🔍 [DEBUG] Current orders before adding new: ${prevOrders.length}`);
-
-							// Check if order already exists to prevent duplicates
-							const orderExists = prevOrders.some(order => order.id === orderId);
-							if (orderExists) {
-								console.log('🔄 Order already exists in list, skipping:', orderId);
-								return prevOrders;
-							}
-
-							// Add new order at the beginning - it will be sorted correctly by filteredOrders
-							const newOrders = [newOrder, ...prevOrders];
-							// Keep only the latest 50 orders to prevent memory issues
-							const finalOrders = newOrders.slice(0, 50);
-
-							console.log(`🔍 [DEBUG] Orders after adding new: ${finalOrders.length}`);
-
-							return finalOrders;
-						});
-					}
-
-					// Update accounts and positions after order execution to refresh Total Equity
-					// This is needed to show updated balances and positions
+					// Refresh all data from database after order execution
 					setTimeout(async () => {
-						console.log('🔄 Refreshing accounts and positions after order execution...');
-						try {
-							// Fetch only accounts and positions, not orders
-							const accountsResponse = await sendMessage('get_paper_trading_accounts', {});
-							if (Array.isArray(accountsResponse)) {
-								setAccounts(accountsResponse);
-							} else if (accountsResponse?.data) {
-								setAccounts(accountsResponse.data);
-							}
-
-							const positionsResponse = await sendMessage('get_paper_trading_positions', {});
-							if (Array.isArray(positionsResponse)) {
-								setPositions(positionsResponse);
-							} else if (positionsResponse?.data) {
-								setPositions(positionsResponse.data);
-							}
-						} catch (error) {
-							console.error('Error refreshing accounts and positions:', error);
-							// Don't retry - just log the error
-						}
+						console.log('🔄 Refreshing all data from database after order execution...');
+						await fetchPaperTradingData();
 					}, 1000); // Wait 1 second for backend to process the order
 				}
 			}
@@ -249,7 +269,7 @@ function PaperTrading() {
 		return () => {
 			window.removeEventListener('websocket_message', handleWebSocketEvent);
 		};
-	}, [processedOrderIds, sendMessage]);
+	}, [sendMessage, fetchPaperTradingData]);
 
 	// Calculate current balance (cash balance)
 	const calculateCurrentBalance = () => {
@@ -289,19 +309,18 @@ function PaperTrading() {
 	const filteredOrders = useMemo(() => {
 		if (!orders.length || !selectedAccount) return [];
 
-		console.log(`🔍 [DEBUG] Total orders before filtering: ${orders.length}`);
-		console.log(`🔍 [DEBUG] Selected account: ${selectedAccount}`);
+		console.log(`🔍 [DEBUG] Filtering orders: total=${orders.length}, selectedAccount=${selectedAccount}, limit=${ordersLimit}`);
 
-		// Show all orders for debugging
-		console.log(`🔍 [DEBUG] All orders:`, orders.map(o => ({ id: o.id, accountId: o.accountId, symbol: o.symbol, side: o.side })));
+		// Filter by account and remove duplicates
+		const uniqueOrders = orders.filter((order, index, self) => {
+			// First check if it's for the selected account
+			if (order.accountId !== selectedAccount) {
+				return false;
+			}
 
-		// Remove duplicates and filter by account
-		const uniqueOrders = orders.filter((order, index, self) =>
-			index === self.findIndex(o => o.id === order.id) && order.accountId === selectedAccount
-		);
-
-		console.log(`🔍 [DEBUG] Orders after filtering by account ${selectedAccount}: ${uniqueOrders.length}`);
-		console.log(`🔍 [DEBUG] Filtered orders:`, uniqueOrders.map(o => ({ id: o.id, accountId: o.accountId, symbol: o.symbol, side: o.side })));
+			const firstIndex = self.findIndex(o => o.id === order.id && o.accountId === selectedAccount);
+			return index === firstIndex;
+		});
 
 		// Sort by date (newest first)
 		const sortedOrders = uniqueOrders.sort((a, b) => {
@@ -310,10 +329,10 @@ function PaperTrading() {
 			return dateB - dateA; // Sort by date descending (newest first)
 		});
 
-		console.log(`🔍 [DEBUG] Final filtered and sorted orders: ${sortedOrders.length}`);
+		console.log(`🔍 [DEBUG] Filtered orders result: ${sortedOrders.length} orders for account ${selectedAccount}`);
 
 		return sortedOrders;
-	}, [orders, selectedAccount]);
+	}, [orders, selectedAccount, ordersLimit]);
 
 	// Update orders count whenever orders array changes
 	// useEffect(() => {
@@ -338,6 +357,107 @@ function PaperTrading() {
 							<p data-testid="paper-trading-subtitle" className="text-gray-600">Simulate trading with virtual funds</p>
 						</div>
 						<div className="flex space-x-3">
+							{/* Orders Limit Selector */}
+							<div className="relative">
+								<button
+									data-testid="orders-limit-button"
+									onClick={() => {
+										console.log(`🔄 [DEBUG] Orders limit button clicked, current ordersLimit: ${ordersLimit}`);
+										console.log(`🔄 [DEBUG] Current showLimitSelector: ${showLimitSelector}`);
+										setShowLimitSelector(!showLimitSelector);
+									}}
+									className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+								>
+									<span>Orders Limit: {ordersLimit === 'all' ? 'All' : ordersLimit}</span>
+									<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+									</svg>
+								</button>
+
+								{showLimitSelector && (
+									<div
+										data-testid="orders-limit-dropdown"
+										className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50"
+										onClick={(e) => {
+											e.stopPropagation();
+											console.log('🔄 [DEBUG] Dropdown container clicked');
+										}}
+									>
+										<div className="py-2">
+											<button
+												data-testid="limit-all"
+												onClick={() => {
+													console.log('🔄 [DEBUG] limit-all button clicked');
+													handleOrdersLimitChange('all').then(() => {
+														setShowLimitSelector(false);
+													}).catch(error => {
+														console.error('Error in handleOrdersLimitChange:', error);
+														setShowLimitSelector(false);
+													});
+												}}
+												className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${ordersLimit === 'all' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
+											>
+												All Orders
+											</button>
+											<button
+												data-testid="limit-10"
+												onClick={(e) => {
+													e.preventDefault();
+													e.stopPropagation();
+													console.log('🔄 [DEBUG] ===== limit-10 button clicked =====');
+													console.log('🔄 [DEBUG] Current ordersLimit before change:', ordersLimit);
+													console.log('🔄 [DEBUG] Calling handleOrdersLimitChange...');
+													handleOrdersLimitChange('10').then(() => {
+														console.log('🔄 [DEBUG] ✅ handleOrdersLimitChange completed successfully');
+														setShowLimitSelector(false);
+													}).catch(error => {
+														console.error('❌ [DEBUG] Error in handleOrdersLimitChange:', error);
+														setShowLimitSelector(false);
+													});
+												}}
+												onMouseDown={(e) => {
+													e.preventDefault();
+													console.log('🔄 [DEBUG] limit-10 button mousedown');
+												}}
+												className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${ordersLimit === '10' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
+											>
+												10 Orders
+											</button>
+											<button
+												data-testid="limit-20"
+												onClick={() => {
+													console.log('🔄 [DEBUG] limit-20 button clicked');
+													handleOrdersLimitChange('20').then(() => {
+														setShowLimitSelector(false);
+													}).catch(error => {
+														console.error('Error in handleOrdersLimitChange:', error);
+														setShowLimitSelector(false);
+													});
+												}}
+												className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${ordersLimit === '20' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
+											>
+												20 Orders
+											</button>
+											<button
+												data-testid="limit-50"
+												onClick={() => {
+													console.log('🔄 [DEBUG] limit-50 button clicked');
+													handleOrdersLimitChange('50').then(() => {
+														setShowLimitSelector(false);
+													}).catch(error => {
+														console.error('Error in handleOrdersLimitChange:', error);
+														setShowLimitSelector(false);
+													});
+												}}
+												className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${ordersLimit === '50' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
+											>
+												50 Orders
+											</button>
+										</div>
+									</div>
+								)}
+							</div>
+
 							<button
 								data-testid="refresh-button"
 								onClick={handleRefresh}
@@ -356,7 +476,7 @@ function PaperTrading() {
 						Select Account
 					</label>
 					<select
-						data-testid="account-select"
+						data-testid="account-selector"
 						value={selectedAccount}
 						onChange={(e) => setSelectedAccount(e.target.value)}
 						className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"

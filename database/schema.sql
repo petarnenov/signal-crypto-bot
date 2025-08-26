@@ -136,3 +136,14 @@ CREATE TABLE IF NOT EXISTS paper_trading_positions (
     updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (accountId) REFERENCES paper_trading_accounts (id)
 );
+
+-- Create user_settings table for storing user preferences
+CREATE TABLE IF NOT EXISTS user_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId TEXT NOT NULL,
+    settingKey TEXT NOT NULL,
+    settingValue TEXT NOT NULL,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(userId, settingKey)
+);

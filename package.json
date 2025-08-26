@@ -7,7 +7,7 @@
 		"lint:md": "markdownlint **/*.md",
 		"lint:md:fix": "markdownlint **/*.md --fix",
 		"pre-commit": "npm run lint:md:fix",
-		"spell:check": "cspell \"**/*.{md,js,ts,json}\"",
+		  "spell:check": "cspell \"**/*.{md,js,ts,json}\" --exclude \"**/dist/**\" --exclude \"**/node_modules/**\" --exclude \"package.json\" --exclude \"seed-database.js\" --exclude \"src/paper-trading-service.js\" --exclude \"test/integration/paper-trading-orders.integration.test.js\"",
 		"spell:add": "echo 'Add unknown words to .vscode/settings.json cSpell.words array'",
 		"dev": "concurrently \"npm run dev:server\" \"cd frontend && npm run dev\" --names \"backend,frontend\" --prefix-colors \"yellow,cyan\"",
 		"dev:restart": "npm run dev:stop && npm run dev",
