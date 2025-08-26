@@ -1,8 +1,20 @@
 {
-  "name": "signal-crypto-bot-monorepo",
+  "name": "signal-crypto-bot",
   "version": "1.0.0",
-  "description": "Crypto Signal Bot - Monorepo with Backend, Frontend, and Shared packages",
-  "private": true,
+  "description": "AI-powered cryptocurrency trading bot with real-time signals, paper trading, WebSocket communication, and full Docker containerization",
+  "private": false,
+  "homepage": "https://github.com/petarnenov/signal-crypto-bot#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/petarnenov/signal-crypto-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/petarnenov/signal-crypto-bot/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/petarnenov/signal-crypto-bot"
+  },
   "workspaces": [
     "packages/*"
   ],
@@ -55,20 +67,75 @@
     "markdownlint-cli": "^0.37.0",
     "nx": "21.4.1"
   },
+  "keywords": [
+    "cryptocurrency",
+    "trading-bot",
+    "ai-signals",
+    "paper-trading",
+    "websocket",
+    "real-time",
+    "react",
+    "nodejs",
+    "docker",
+    "monorepo",
+    "nx",
+    "openai",
+    "binance",
+    "telegram",
+    "sqlite",
+    "prometheus",
+    "grafana",
+    "typescript",
+    "vite",
+    "express",
+    "trading-signals",
+    "crypto-trading",
+    "automated-trading",
+    "technical-analysis",
+    "market-analysis"
+  ],
+  "author": {
+    "name": "Petar Petrov",
+    "email": "petar.petrov@example.com",
+    "url": "https://github.com/petarnenov"
+  },
+  "contributors": [
+    {
+      "name": "Petar Petrov",
+      "email": "petar.petrov@example.com",
+      "url": "https://github.com/petarnenov"
+    }
+  ],
+  "license": "MIT",
+  "main": "packages/backend/src/server.js",
+  "files": [
+    "packages/",
+    "monitoring/",
+    "docker-compose.yml",
+    "docker-compose.dev.yml",
+    "README.md",
+    "DOCKER.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "linux",
+    "darwin",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
-  "keywords": [
-    "crypto",
-    "trading",
-    "signals",
-    "bot",
-    "monorepo",
-    "websocket",
-    "react",
-    "nodejs"
-  ],
-  "author": "Petar Petrov",
-  "license": "MIT"
+  "peerDependencies": {},
+  "peerDependenciesMeta": {},
+  "overrides": {},
+  "resolutions": {},
+  "packageManager": "npm@8.0.0"
 }
