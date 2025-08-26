@@ -21,10 +21,18 @@ describe('PaperTradingService', () => {
 			getPaperTradingOrders: vi.fn(),
 			getPaperTradingOrder: vi.fn(),
 			updatePaperTradingOrder: vi.fn(),
-			getPaperTradingAccounts: vi.fn()
+			getPaperTradingAccounts: vi.fn(),
+			db: {
+				prepare: vi.fn().mockReturnValue({
+					all: vi.fn().mockReturnValue([])
+				})
+			}
 		};
 		
 		paperTradingService = new PaperTradingService({ db: mockDb });
+		
+		// Wait a bit for async initialization to complete
+		await new Promise(resolve => setTimeout(resolve, 200));
 	});
 
 	afterEach(async () => {

@@ -18,13 +18,24 @@ class PaperTradingService {
 		// Load existing positions from database
 		this.loadPositionsFromDatabase();
 
-		// Initialize with some test accounts if none exist
-		this.initializeTestAccounts();
+		// Initialize with some test accounts if none exist (but don't await in constructor)
+		this.initializeTestAccounts().catch(error => {
+			console.error('Error initializing test accounts in constructor:', error);
+		});
 	}
 
 	// Initialize test accounts if none exist
 	async initializeTestAccounts() {
 		try {
+			// Check if database is properly initialized
+			if (!this.db) {
+				console.warn('Database not properly initialized, skipping test account initialization');
+				return;
+			}
+
+			// Add a small delay to ensure database is ready
+			await new Promise(resolve => setTimeout(resolve, 100));
+
 			const user1Accounts = await this.getUserAccounts('user1');
 			const user2Accounts = await this.getUserAccounts('user2');
 
@@ -1057,9 +1068,29 @@ class PaperTradingService {
 
 	loadPositionsFromDatabase() {
 		try {
-			const dbPositions = this.db.getPaperTradingPositions();
+			// Check if database is properly initialized
+			if (!this.db || !this.db.db) {
+				console.warn('Database not properly initialized, skipping position loading');
+				return;
+			}
+
+			// Get all positions from database (no accountId filter)
+			const stmt = this.db.db.prepare(`
+				SELECT * FROM paper_trading_positions
+			`);
+			const dbPositions = stmt.all();
+
+			if (!Array.isArray(dbPositions)) {
+				console.warn('No positions found or invalid result from database');
+				return;
+			}
 
 			for (const dbPosition of dbPositions) {
+				if (!dbPosition || !dbPosition.id) {
+					console.warn('Invalid position data found:', dbPosition);
+					continue;
+				}
+
 				const position = {
 					id: dbPosition.id,
 					accountId: dbPosition.accountId,
